@@ -28,7 +28,7 @@
    The GNU General Public License is contained in the file COPYING.
 */
 
-#if defined(VGO_linux) || defined(VGO_freebsd)
+#if defined(VGO_linux) || defined(VGO_dragonfly)
 
 #include "pub_core_basics.h"
 #include "pub_core_vki.h"
@@ -191,7 +191,7 @@ static void write_note(Int fd, const struct note *n)
    VG_(write)(fd, &n->note, note_size(n));
 }
 
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
 static void fill_prpsinfo(const ThreadState *tst,
                           struct vki_elf_prpsinfo *prpsinfo)
 {
@@ -249,7 +249,7 @@ static void fill_prstatus(const ThreadState *tst,
 
    VG_(memset)(prs, 0, sizeof(*prs));
 
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
    prs->pr_version = VKI_PRSTATUS_VERSION;
    prs->pr_statussz = sizeof(struct vki_elf_prstatus);
    prs->pr_gregsetsz = sizeof(vki_elf_gregset_t);
@@ -442,7 +442,7 @@ static void fill_prstatus(const ThreadState *tst,
    regs[VKI_MIPS64_EF_CP0_STATUS] = arch->vex.guest_CP0_status;
    regs[VKI_MIPS64_EF_CP0_EPC]    = arch->vex.guest_PC;
 
-#elif defined(VGP_amd64_freebsd)
+#elif defined(VGP_amd64_dragonfly)
    regs->rflags = LibVEX_GuestAMD64_get_rflags( &((ThreadArchState*)arch)->vex );
    regs->rsp    = arch->vex.guest_RSP;
    regs->rip    = arch->vex.guest_RIP;
@@ -462,7 +462,7 @@ static void fill_prstatus(const ThreadState *tst,
    regs->r14    = arch->vex.guest_R14;
    regs->r15    = arch->vex.guest_R15;
 
-#elif defined(VGP_x86_freebsd)
+#elif defined(VGP_x86_dragonfly)
    regs->eflags = LibVEX_GuestX86_get_eflags( &arch->vex );
    regs->esp    = arch->vex.guest_ESP;
    regs->eip    = arch->vex.guest_EIP;
@@ -574,9 +574,9 @@ static void fill_fpu(const ThreadState *tst, vki_elf_fpregset_t *fpu)
    DO(24); DO(25); DO(26); DO(27); DO(28); DO(29); DO(30); DO(31);
 #  undef DO
 
-#elif defined(VGP_x86_freebsd)
+#elif defined(VGP_x86_dragonfly)
 
-#elif defined(VGP_amd64_freebsd)
+#elif defined(VGP_amd64_dragonfly)
 
 #  define DO(n)  VG_(memcpy)(fpu->xmm_space + n * 4, \
                              &arch->vex.guest_YMM##n[0], 16)

@@ -96,8 +96,8 @@ n-i-bz  exp-sgcheck asserts on gcc-4.6.2 generated Dwarf3
 306171  Boost.Context appears to cause Valgrind to crash
    Stack switching; should fix.  (Conservative unwind?)
 
-306235  unhandled syscall: 429 (freebsd)
-   Need to forward to FreeBSD port maintainers.
+306235  unhandled syscall: 429 (dragonfly)
+   Need to forward to Dragonfly port maintainers.
 
 306299  Internal error when running a winelib application
    Conservative unwind?
@@ -158,7 +158,7 @@ gcp libnss3.so debuginfo read hang
         Still alive!
 
 308158  running with --leack-check=full makes valgrind exit
-        FreeBSD -- although FreeBSD maintainers may not be aware
+        Dragonfly -- although Dragonfly maintainers may not be aware
 
 ------ Thu Oct 11 18:51:26 CEST 2012
 
@@ -357,7 +357,7 @@ gcp libnss3.so debuginfo read hang
 Thu Apr 11 18:16:04 CEST 2013
 
 319237  [PATCH] Added support for ELF injection
-        FreeBSD-specific
+        Dragonfly-specific
 
 319274  unhandled syscall: unix:410
         OSX108-specific

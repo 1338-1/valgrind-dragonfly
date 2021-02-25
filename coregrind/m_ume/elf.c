@@ -28,7 +28,7 @@
    The GNU General Public License is contained in the file COPYING.
 */
 
-#if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
 
 #include "pub_core_basics.h"
 #include "pub_core_vki.h"
@@ -644,9 +644,9 @@ Int VG_(load_ELF)(Int fd, const HChar* name, /*MOD*/ExeInfo* info)
          VG_(pread)(fd, buf, ph->p_filesz, ph->p_offset);
          buf[ph->p_filesz] = '\0';
 
-#if defined(VGP_x86_freebsd)
+#if defined(VGP_x86_dragonfly)
          sres._isError = True;
-         /* Hack.  FreeBSD's kernel overloads the interpreter name. */
+         /* Hack.  Dragonfly's kernel overloads the interpreter name. */
          if (VG_(strcmp)(buf, "/libexec/ld-elf.so.1") == 0 ||
              VG_(strcmp)(buf, "/usr/libexec/ld-elf.so.1") == 0) {
             sres = VG_(open)("/libexec/ld-elf32.so.1", VKI_O_RDONLY, 0);
@@ -879,7 +879,7 @@ Int VG_(load_ELF)(Int fd, const HChar* name, /*MOD*/ExeInfo* info)
    return 0;
 }
 
-#endif // defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#endif // defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
 
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/

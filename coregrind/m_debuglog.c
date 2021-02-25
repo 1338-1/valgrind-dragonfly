@@ -437,7 +437,7 @@ static UInt local_sys_getpid ( void )
    return (UInt)(__res);
 }
 
-#elif defined(VGP_x86_freebsd)
+#elif defined(VGP_x86_dragonfly)
 static UInt local_sys_write_stderr ( HChar* buf, Int n )
 {
    Int result;
@@ -469,7 +469,7 @@ static UInt local_sys_getpid ( void )
    return __res;
 }
 
-#elif defined(VGP_amd64_freebsd)
+#elif defined(VGP_amd64_dragonfly)
 __attribute__((noinline))
 static UInt local_sys_write_stderr ( HChar* buf, Int n )
 {

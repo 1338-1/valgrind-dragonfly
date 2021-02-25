@@ -332,9 +332,9 @@ SysRes VG_(mk_SysRes_amd64_solaris) ( Bool isErr, ULong val, ULong val2 )
 }
 
 
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 
-SysRes VG_(mk_SysRes_x86_freebsd) ( UInt val, UInt val2, Bool err ) {
+SysRes VG_(mk_SysRes_x86_dragonfly) ( UInt val, UInt val2, Bool err ) {
    SysRes r;
    r._isError = err;
    r._val = val;
@@ -342,7 +342,7 @@ SysRes VG_(mk_SysRes_x86_freebsd) ( UInt val, UInt val2, Bool err ) {
    return r;
 }
 
-SysRes VG_(mk_SysRes_amd64_freebsd) ( ULong val, ULong val2, Bool err ) {
+SysRes VG_(mk_SysRes_amd64_dragonfly) ( ULong val, ULong val2, Bool err ) {
    SysRes r;
    r._isError = err;
    r._val = val;
@@ -636,9 +636,9 @@ asm(
 ".previous\n"
 );
 
-#elif defined(VGP_x86_freebsd)
+#elif defined(VGP_x86_dragonfly)
 /* Incoming args (syscall number + up to 8 args) are on the stack.
-   FreeBSD has a syscall called 'syscall' that takes all args (including
+   Dragonfly has a syscall called 'syscall' that takes all args (including
    the syscall number) off the stack.  Since we're called, the return
    address is on the stack as expected, so we can just call syscall(2)
    and it Just Works.  Error is when carry is set.
@@ -663,7 +663,7 @@ asm(
 ".previous\n"
 );
 
-#elif defined(VGP_amd64_freebsd)
+#elif defined(VGP_amd64_dragonfly)
 extern UWord do_syscall_WRK (
           UWord syscall_no,    /* %rdi */
           UWord a1,            /* %rsi */
@@ -1044,20 +1044,20 @@ SysRes VG_(do_syscall) ( UWord sysno, RegWord a1, RegWord a2, RegWord a3,
    UWord val = do_syscall_WRK(sysno,a1,a2,a3,a4,a5,a6);
    return VG_(mk_SysRes_amd64_linux)( val );
 
-#  elif defined(VGP_x86_freebsd)
+#  elif defined(VGP_x86_dragonfly)
    ULong val;
    UInt err = 0;
    val = do_syscall_WRK(sysno, a1, a2, a3, a4, a5,
                         a6, a7, a8, &err);
-   return VG_(mk_SysRes_x86_freebsd)( (UInt)val, (UInt)(val>>32), (err & 1) != 0 ? True : False);
+   return VG_(mk_SysRes_x86_dragonfly)( (UInt)val, (UInt)(val>>32), (err & 1) != 0 ? True : False);
 
-#  elif defined(VGP_amd64_freebsd)
+#  elif defined(VGP_amd64_dragonfly)
    UWord val;
    UWord val2 = 0;
    UInt err = 0;
    val = do_syscall_WRK(sysno, a1, a2, a3, a4, a5,
                         a6, a7, a8, &err, &val2);
-   return VG_(mk_SysRes_amd64_freebsd)( val, val2, (err & 1) != 0 ? True : False);
+   return VG_(mk_SysRes_amd64_dragonfly)( val, val2, (err & 1) != 0 ? True : False);
 
 #  elif defined(VGP_ppc32_linux)
    ULong ret     = do_syscall_WRK(sysno,a1,a2,a3,a4,a5,a6);

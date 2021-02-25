@@ -52,7 +52,7 @@
 /* Arguments for a syscall. */
 typedef
    struct SyscallArgs {
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
       Word klass;
 #endif
       Word sysno;
@@ -105,7 +105,7 @@ typedef
       Int o_arg6;
       Int uu_arg7;
       Int uu_arg8;
-#     elif defined(VGP_x86_freebsd)
+#     elif defined(VGP_x86_dragonfly)
       Int s_arg1;
       Int s_arg2;
       Int s_arg3;
@@ -114,7 +114,7 @@ typedef
       Int s_arg6;
       Int s_arg7;
       Int s_arg8;
-#     elif defined(VGP_amd64_freebsd)
+#     elif defined(VGP_amd64_dragonfly)
       Int o_arg1;
       Int o_arg2;
       Int o_arg3;
@@ -206,7 +206,7 @@ typedef
 extern
 SyscallTableEntry* ML_(get_linux_syscall_entry)( UInt sysno );
 
-#elif defined(VGO_darwin) || defined(VGO_freebsd)
+#elif defined(VGO_darwin) || defined(VGO_dragonfly)
 /* XXX: Darwin still uses the old scheme of exposing the table
    array(s) and size(s) directly to syswrap-main.c.  This should be
    fixed. */
@@ -299,7 +299,7 @@ SyscallTableEntry* ML_(get_solaris_syscall_entry)( UInt sysno );
 #if defined(VGO_linux) || defined(VGO_solaris)
 #  define GENX_(sysno, name)  WRAPPER_ENTRY_X_(generic, sysno, name)
 #  define GENXY(sysno, name)  WRAPPER_ENTRY_XY(generic, sysno, name)
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 #  define GENX_(sysno, name)  WRAPPER_ENTRY_X_(generic, sysno, name)
 #  define GENXY(sysno, name)  WRAPPER_ENTRY_XY(generic, sysno, name)
 #elif defined(VGO_darwin)
@@ -314,10 +314,10 @@ SyscallTableEntry* ML_(get_solaris_syscall_entry)( UInt sysno );
 #define LINX_(sysno, name)    WRAPPER_ENTRY_X_(linux, sysno, name) 
 #define LINXY(sysno, name)    WRAPPER_ENTRY_XY(linux, sysno, name)
 
-/* Add a FreeBSD-specific, arch-independent wrapper to a syscall
+/* Add a Dragonfly-specific, arch-independent wrapper to a syscall
    table. */
-#define BSDX_(sysno, name)    WRAPPER_ENTRY_X_(freebsd, sysno, name) 
-#define BSDXY(sysno, name)    WRAPPER_ENTRY_XY(freebsd, sysno, name)
+#define BSDX_(sysno, name)    WRAPPER_ENTRY_X_(dragonfly, sysno, name) 
+#define BSDXY(sysno, name)    WRAPPER_ENTRY_XY(dragonfly, sysno, name)
 
 
 /* ---------------------------------------------------------------------
@@ -364,7 +364,7 @@ static inline UWord getRES ( SyscallStatus* st ) {
    return sr_Res(st->sres);
 }
 
-#if defined(VGO_darwin) || defined(VGO_solaris) || defined(VGO_freebsd)
+#if defined(VGO_darwin) || defined(VGO_solaris) || defined(VGO_dragonfly)
 static inline UWord getRESHI ( SyscallStatus* st ) {
    vg_assert(st->what == SsComplete);
    vg_assert(!sr_isError(st->sres));
@@ -385,10 +385,10 @@ static inline UWord getERR ( SyscallStatus* st ) {
         status->sres = VG_(mk_SysRes_Success)(zzz);  \
    } while (0)
 
-#ifdef VGO_freebsd
+#ifdef VGO_dragonfly
 #define SET_STATUS_Success2(zzz, zzz2)               \
    do { status->what = SsComplete;                   \
-        status->sres = VG_(mk_SysRes_amd64_freebsd)(zzz, zzz2, False);  \
+        status->sres = VG_(mk_SysRes_amd64_dragonfly)(zzz, zzz2, False);  \
    } while (0)
 #endif
 
@@ -444,7 +444,7 @@ static inline UWord getERR ( SyscallStatus* st ) {
 #  define PRA5(s,t,a) PRRAn(5,s,t,a)
 #  define PRA6(s,t,a) PRRAn(6,s,t,a)
 
-#elif defined(VGP_x86_freebsd)
+#elif defined(VGP_x86_dragonfly)
    /* Up to 8 parameters, all on the stack. */
 #  define PRA1(s,t,a) PSRAn(1,s,t,a)
 #  define PRA2(s,t,a) PSRAn(2,s,t,a)
@@ -455,7 +455,7 @@ static inline UWord getERR ( SyscallStatus* st ) {
 #  define PRA7(s,t,a) PSRAn(7,s,t,a)
 #  define PRA8(s,t,a) PSRAn(8,s,t,a)
 
-#elif defined(VGP_amd64_freebsd)
+#elif defined(VGP_amd64_dragonfly)
    /* Up to 8 parameters, 6 in registers, 2 on the stack. */
 #  define PRA1(s,t,a) PRRAn(1,s,t,a)
 #  define PRA2(s,t,a) PRRAn(2,s,t,a)

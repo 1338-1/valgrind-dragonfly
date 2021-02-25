@@ -221,7 +221,7 @@ typedef struct
 #define EI_OSABI	7		/* OS ABI identification */
 #define ELFOSABI_SYSV		0	/* UNIX System V ABI */
 #define ELFOSABI_HPUX		1	/* HP-UX */
-#define ELFOSABI_FREEBSD        9       /* Free BSD */
+#define ELFOSABI_DRAGONFLY        9       /* Free BSD */
 #define ELFOSABI_ARM		97	/* ARM */
 #define ELFOSABI_STANDALONE	255	/* Standalone (embedded) application */
 
@@ -5375,7 +5375,7 @@ int __stdcall FreeConsole(void);
   #define strtof (float)strtod
   #define strtoll (long long)strtol
 #endif
-#elif defined(TCC_UCLIBC) || defined(__FreeBSD__)
+#elif defined(TCC_UCLIBC) || defined(__DragonFly__)
 /* currently incorrect */
 long double strtold(const char *nptr, char **endptr)
 {
@@ -19178,7 +19178,7 @@ static void tcc_add_linker_symbols(TCCState *s1)
 }
 
 /* name of ELF interpreter */
-#ifdef __FreeBSD__
+#ifdef __DragonFly__
 static char elf_interp[] = "/usr/libexec/ld-elf.so.1";
 #else
 static char elf_interp[] = "/lib/ld-linux.so.2";
@@ -19757,8 +19757,8 @@ int tcc_output_file(TCCState *s1, const char *filename)
         ehdr.e_ident[4] = ELFCLASS32;
         ehdr.e_ident[5] = ELFDATA2LSB;
         ehdr.e_ident[6] = EV_CURRENT;
-#ifdef __FreeBSD__
-        ehdr.e_ident[EI_OSABI] = ELFOSABI_FREEBSD;
+#ifdef __DragonFly__
+        ehdr.e_ident[EI_OSABI] = ELFOSABI_DRAGONFLY;
 #endif
 #ifdef TCC_TARGET_ARM
         ehdr.e_ident[EI_OSABI] = ELFOSABI_ARM;

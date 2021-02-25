@@ -216,7 +216,7 @@ void VG_(sigcomplementset)( vki_sigset_t* dst, const vki_sigset_t* src )
 */
 Int VG_(sigprocmask)( Int how, const vki_sigset_t* set, vki_sigset_t* oldset)
 {
-#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
 #  if defined(__NR_rt_sigprocmask)
    SysRes res = VG_(do_syscall4)(__NR_rt_sigprocmask, 
                                  how, (UWord)set, (UWord)oldset, 
@@ -320,7 +320,7 @@ Int VG_(sigaction) ( Int signum,
                                  signum, (UWord)act, (UWord)oldact);
    return sr_isError(res) ? -1 : 0;
 
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
    SysRes res = VG_(do_syscall3)(__NR_sigaction,
                                  signum, (UWord)act, (UWord)oldact);
    return sr_isError(res) ? -1 : 0;
@@ -337,7 +337,7 @@ void
 VG_(convert_sigaction_fromK_to_toK)( const vki_sigaction_fromK_t* fromK,
                                      /*OUT*/vki_sigaction_toK_t* toK )
 {
-#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
    *toK = *fromK;
 #  elif defined(VGO_darwin)
    toK->ksa_handler = fromK->ksa_handler;
@@ -354,7 +354,7 @@ Int VG_(kill)( Int pid, Int signo )
 {
 #  if defined(VGO_linux) || defined(VGO_solaris)
    SysRes res = VG_(do_syscall2)(__NR_kill, pid, signo);
-#  elif defined(VGO_darwin) || defined(VGO_freebsd)
+#  elif defined(VGO_darwin) || defined(VGO_dragonfly)
    SysRes res = VG_(do_syscall3)(__NR_kill,
                                  pid, signo, 1/*posix-compliant*/);
 #  else
@@ -394,7 +394,7 @@ Int VG_(tkill)( Int lwpid, Int signo )
    return sr_isError(res) ? -1 : 0;
 
    
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
    SysRes res;
    res = VG_(do_syscall2)(__NR_thr_kill, lwpid, signo);
    return sr_isError(res) ? -1 : 0;
@@ -562,14 +562,14 @@ Int VG_(sigtimedwait_zero)( const vki_sigset_t *set, vki_siginfo_t *info )
    return sr_isError(res) ? -1 : sr_Res(res);
 }
 
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 
 /*
- * This is a mess.  sigtimedwait() was added in FreeBSD-6.  However,
- * there was no 32 bit syscall version until FreeBSD-7.  So on older
+ * This is a mess.  sigtimedwait() was added in DragonFly-6.  However,
+ * there was no 32 bit syscall version until DragonFly-7.  So on older
  * platforms we have to check.
  */
-#  if __FreeBSD__ < 7
+#  if __DragonFly__ < 7
 static void sigtimedwait_zero_handler ( Int sig ) 
 { 
    vg_assert(sig != VKI_SIGILL);
@@ -584,24 +584,24 @@ static void sigtimedwait_zero_handler ( Int sig )
 Int VG_(sigtimedwait_zero)( const vki_sigset_t *set, 
                             vki_siginfo_t *info )
 {
-#  if __FreeBSD__ < 7
+#  if __DragonFly__ < 7
   Int    i, ir;
   SysRes sr;
   vki_sigset_t pending, blocked, allbutone;
   struct vki_sigaction sa, saved_sa;
   Int osreldate;
-#  if defined(VGP_x86_freebsd)
+#  if defined(VGP_x86_dragonfly)
   Int is32on64;
 #  endif
   Bool have_sigtimedwait_zero = True;
 #  endif
   static const struct vki_timespec zero = { 0, 0 };
 
-#  if __FreeBSD__ < 7
+#  if __DragonFly__ < 7
   osreldate = VG_(getosreldate)();
   if (osreldate < 600000)
      have_sigtimedwait_zero = False;
-#  if defined(VGP_x86_freebsd)
+#  if defined(VGP_x86_dragonfly)
   /* 32 bit emulation is busted, no sigtimedwait even though the kernel has it */
   is32on64 = VG_(is32on64)();
   if (is32on64 && osreldate < 700000)
@@ -612,10 +612,10 @@ Int VG_(sigtimedwait_zero)( const vki_sigset_t *set,
      SysRes res = VG_(do_syscall3)(__NR_sigtimedwait, (UWord)set, (UWord)info, 
                                    (UWord)&zero);
      return sr_isError(res) ? -1 : sr_Res(res);
-#  if __FreeBSD__ < 7
+#  if __DragonFly__ < 7
   }
 
-  /* Find out what's pending: FreeBSD sigpending */
+  /* Find out what's pending: DragonFly sigpending */
   sr = VG_(do_syscall1)(__NR_sigpending, (UWord)&pending);
   vg_assert(!sr.isError);
 

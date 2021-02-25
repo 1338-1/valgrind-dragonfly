@@ -67,7 +67,7 @@ HChar** VG_(client_envp) = NULL;
 const HChar *VG_(libdir) = VG_LIBDIR;
 
 const HChar *VG_(LD_PRELOAD_var_name) =
-#if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
    "LD_PRELOAD";
 #elif defined(VGO_darwin)
    "DYLD_INSERT_LIBRARIES";
@@ -348,7 +348,7 @@ void VG_(client_cmd_and_args)(HChar *buffer, SizeT buf_size)
 
 Int VG_(waitpid)(Int pid, Int *status, Int options)
 {
-#  if defined(VGO_linux) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_dragonfly)
    SysRes res = VG_(do_syscall4)(__NR_wait4,
                                  pid, (UWord)status, options, 0);
    return sr_isError(res) ? -1 : sr_Res(res);
@@ -586,7 +586,7 @@ Int VG_(system) ( const HChar* cmd )
 Int VG_(sysctl)(Int *name, UInt namelen, void *oldp, SizeT *oldlenp, void *newp, SizeT newlen)
 {
    SysRes res;
-#  if defined(VGO_darwin) || defined(VGO_freebsd)
+#  if defined(VGO_darwin) || defined(VGO_dragonfly)
    res = VG_(do_syscall6)(__NR___sysctl,
                            (UWord)name, namelen, (UWord)oldp, (UWord)oldlenp, (UWord)newp, newlen);
 #  else
@@ -684,7 +684,7 @@ Int VG_(gettid)(void)
 
    return sr_Res(res);
 
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
    SysRes res;
    long tid;
 
@@ -719,7 +719,7 @@ Int VG_(getpgrp) ( void )
    /* ASSUMES SYSCALL ALWAYS SUCCEEDS */
 #  if defined(VGP_arm64_linux)
    return sr_Res( VG_(do_syscall1)(__NR_getpgid, 0) );
-#  elif defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  elif defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    return sr_Res( VG_(do_syscall0)(__NR_getpgrp) );
 #  elif defined(VGO_solaris)
    /* Uses the shared pgrpsys syscall, 0 for the getpgrp variant. */
@@ -732,7 +732,7 @@ Int VG_(getpgrp) ( void )
 Int VG_(getppid) ( void )
 {
    /* ASSUMES SYSCALL ALWAYS SUCCEEDS */
-#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    return sr_Res( VG_(do_syscall0)(__NR_getppid) );
 #  elif defined(VGO_solaris)
    /* Uses the shared getpid/getppid syscall, val2 contains a parent pid. */
@@ -745,7 +745,7 @@ Int VG_(getppid) ( void )
 Int VG_(geteuid) ( void )
 {
    /* ASSUMES SYSCALL ALWAYS SUCCEEDS */
-#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    {
 #     if defined(__NR_geteuid32)
       // We use the 32-bit version if it's supported.  Otherwise, IDs greater
@@ -766,7 +766,7 @@ Int VG_(geteuid) ( void )
 
 Int VG_(getegid) ( void )
 {
-#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    /* ASSUMES SYSCALL ALWAYS SUCCEEDS */
 #    if defined(__NR_getegid32)
    // We use the 32-bit version if it's supported.  Otherwise, IDs greater
@@ -813,7 +813,7 @@ Int VG_(getgroups)( Int size, UInt* list )
         || defined(VGP_ppc64be_linux) || defined(VGP_ppc64le_linux)  \
         || defined(VGO_darwin) || defined(VGP_s390x_linux)    \
         || defined(VGP_mips32_linux) || defined(VGP_arm64_linux) \
-        || defined(VGO_solaris) || defined(VGO_freebsd)
+        || defined(VGO_solaris) || defined(VGO_dragonfly)
    SysRes sres;
    sres = VG_(do_syscall2)(__NR_getgroups, size, (Addr)list);
    if (sr_isError(sres))
@@ -832,7 +832,7 @@ Int VG_(getgroups)( Int size, UInt* list )
 Int VG_(ptrace) ( Int request, Int pid, void *addr, void *data )
 {
    SysRes res;
-#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    res = VG_(do_syscall4)(__NR_ptrace, request, pid, (UWord)addr, (UWord)data);
 #  elif defined(VGO_solaris)
    /* There is no ptrace syscall on Solaris.  Such requests has to be
@@ -862,7 +862,7 @@ Int VG_(fork) ( void )
       return -1;
    return sr_Res(res);
 
-#  elif defined(VGO_linux) || defined(VGO_freebsd)
+#  elif defined(VGO_linux) || defined(VGO_dragonfly)
    SysRes res;
    res = VG_(do_syscall0)(__NR_fork);
    if (sr_isError(res))
@@ -930,7 +930,7 @@ UInt VG_(read_millisecond_timer) ( void )
      }
    }
 
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
    { SysRes res;
      struct vki_timeval tv_now;
      res = VG_(do_syscall2)(__NR_gettimeofday, (UWord)&tv_now, (UWord)NULL);
@@ -1001,7 +1001,7 @@ UInt VG_(get_user_milliseconds)(void)
 #  elif defined(VGO_darwin)
    res = 0;
 
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
    res = 0;
 
 #  else
@@ -1077,10 +1077,10 @@ void VG_(do_atfork_child)(ThreadId tid)
 }
 
 /* ---------------------------------------------------------------------
-   FreeBSD sysctlbyname(), modfind(), etc
+   Dragonfly sysctlbyname(), modfind(), etc
    ------------------------------------------------------------------ */
 
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
 Int VG_(sysctlbyname)(const Char *name, void *oldp, vki_size_t *oldlenp, void *newp, vki_size_t newlen)
 {
    Int oid[2];
@@ -1113,9 +1113,9 @@ Int VG_(getosreldate)(void)
 
 Bool VG_(is32on64)(void)
 {
-#if defined(VGP_amd64_freebsd)
+#if defined(VGP_amd64_dragonfly)
    return False;
-#elif defined(VGP_x86_freebsd)
+#elif defined(VGP_x86_dragonfly)
    Int oid[2], error;
    vki_size_t len;
    char machbuf[32];

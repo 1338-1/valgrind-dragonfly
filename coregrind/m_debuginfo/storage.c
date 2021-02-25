@@ -321,7 +321,7 @@ void ML_(addSym) ( struct _DebugInfo* di, DiSym* sym )
    vg_assert(sym->pri_name != NULL);
    vg_assert(sym->sec_names == NULL);
 
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
    if (sym->size == 0)
       sym->size = 1;
 #endif
@@ -1474,7 +1474,7 @@ Bool preferName ( const DebugInfo* di,
    vlena = VG_(strlen)(a_name);
    vlenb = VG_(strlen)(b_name);
 
-#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
 #    define VERSION_CHAR '@'
 #  elif defined(VGO_darwin)
 #    define VERSION_CHAR '$'

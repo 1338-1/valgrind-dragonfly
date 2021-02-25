@@ -47,10 +47,10 @@ extern const HChar *VG_(sysnum_string) (Word sysnum);
 #define VG_SYSNUM_STRING(sysnum) VG_(sysnum_string)(sysnum)
 
 
-#if defined(VGO_freebsd)
-   // See the FreeBSD-specific case in pub_tool_vkiscnums_asm.h for an
+#if defined(VGO_dragonfly)
+   // See the Dragonfly-specific case in pub_tool_vkiscnums_asm.h for an
    // explanation of why we include this here rather than there.
-#  include "vki/vki-scnums-freebsd.h"
+#  include "vki/vki-scnums-dragonfly.h"
 #endif
 
 #endif   // __PUB_TOOL_VKISCNUMS_H

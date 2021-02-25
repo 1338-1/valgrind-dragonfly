@@ -4,7 +4,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
 # include <sys/fcntl.h>
 #endif
 /* This is really a test of semaphore handling
@@ -234,7 +234,7 @@ static sem_t* my_sem_init (char* identity, int pshared, unsigned count)
 	 s = NULL;
       }
    }
-#elif defined(VGO_darwin) || defined(VGO_freebsd)
+#elif defined(VGO_darwin) || defined(VGO_dragonfly)
    char name[100];
    sprintf(name, "anonsem_%s_pid%d", identity, (int)getpid());
    name[ sizeof(name)-1 ] = 0;

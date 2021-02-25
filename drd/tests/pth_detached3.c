@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <stdio.h>
 
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
 #include <sys/types.h>
 #endif
 
@@ -25,7 +25,7 @@ int main(int argc, char** argv)
   pthread_detach(thread);
 
   /* Invoke pthread_detach() with an invalid thread ID. */
-#ifdef VGO_freebsd
+#ifdef VGO_dragonfly
   pthread_detach((pthread_t)12345);
 #else
   pthread_detach(thread + 8);

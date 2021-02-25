@@ -140,7 +140,7 @@ AC_MSG_CHECKING([for a supported version of gcc])
 # ######## clang variants ########
 # Clang: clang version 2.9 (tags/RELEASE_29/final)
 # Apple clang: Apple clang version 3.1 (tags/Apple/clang-318.0.58) (based on LLVM 3.1svn)
-# FreeBSD clang: FreeBSD clang version 3.1 (branches/release_31 156863) 20120523
+# Dragonfly clang: Dragonfly clang version 3.1 (branches/release_31 156863) 20120523
 #
 # ######## Apple LLVM variants ########
 # Apple LLVM version 5.1 (clang-503.0.40) (based on LLVM 3.4svn)
@@ -358,10 +358,10 @@ case "${host_os}" in
 
         ;;
 
-     *freebsd*)
+     *dragonfly*)
         AC_MSG_RESULT([ok (${host_os})])
-        VGCONF_OS="freebsd"
-	DEFAULT_SUPP="freebsd.supp ${DEFAULT_SUPP}"
+        VGCONF_OS="dragonfly"
+	DEFAULT_SUPP="dragonfly.supp ${DEFAULT_SUPP}"
         ;;
 
      *darwin*)
@@ -664,35 +664,14 @@ case "$ARCH_MAX-$VGCONF_OS" in
         valt_load_address_pri_inner="0x38000000"
         AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
        ;;
-     x86-freebsd)
-        VGCONF_ARCH_PRI="x86"
-        VGCONF_ARCH_SEC=""
-	VGCONF_PLATFORM_PRI_CAPS="X86_FREEBSD"
-	VGCONF_PLATFORM_SEC_CAPS=""
-        valt_load_address_pri_norml="0x38000000"
-        valt_load_address_pri_inner="0x28000000"
-        valt_load_address_sec_norml="0xUNSET"
-        valt_load_address_sec_inner="0xUNSET"
-        AC_MSG_RESULT([ok (${ARCH_MAX}-${VGCONF_OS})])
+     x86-dragonfly)
+        AC_MSG_ERROR([dragonfly only supports the amd64 architecture])
 	;;
-     amd64-freebsd)
-	if test x$vg_cv_only64bit = xyes; then
-           VGCONF_ARCH_PRI="amd64"
-           VGCONF_ARCH_SEC=""
-	   VGCONF_PLATFORM_PRI_CAPS="AMD64_FREEBSD"
-	   VGCONF_PLATFORM_SEC_CAPS=""
-	elif test x$vg_cv_only32bit = xyes; then
-	   VGCONF_ARCH_PRI="x86"
-           VGCONF_ARCH_SEC=""
-	   VGCONF_PLATFORM_PRI_CAPS="X86_FREEBSD"
-	   VGCONF_PLATFORM_SEC_CAPS=""
-	else
-           VGCONF_ARCH_PRI="amd64"
-           VGCONF_ARCH_SEC="x86"
-	   VGCONF_PLATFORM_PRI_CAPS="AMD64_FREEBSD"
-	   VGCONF_PLATFORM_SEC_CAPS="X86_FREEBSD"
-	fi
-        FLAG_32ON64="-B/usr/lib32"
+     amd64-dragonfly)
+        VGCONF_ARCH_PRI="amd64"
+        VGCONF_ARCH_SEC=""
+	VGCONF_PLATFORM_PRI_CAPS="AMD64_DRAGONFLY"
+	VGCONF_PLATFORM_SEC_CAPS=""
         valt_load_address_pri_norml="0x38000000"
         valt_load_address_pri_inner="0x28000000"
         valt_load_address_sec_norml="0x38000000"
@@ -888,15 +867,15 @@ esac
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_X86,   
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_LINUX \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_LINUX \
-                 -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
-                 -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_FREEBSD \
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_DRAGONFLY \
+                 -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_DRAGONFLY \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_SOLARIS \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_SOLARIS )
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_AMD64, 
                test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_LINUX \
-                 -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
+                 -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DRAGONFLY \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DARWIN \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_SOLARIS )
 AM_CONDITIONAL(VGCONF_ARCHS_INCLUDE_PPC32, 
@@ -945,11 +924,11 @@ AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_MIPS32_LINUX,
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xMIPS32_LINUX)
 AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_MIPS64_LINUX,
                test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX)
-AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_X86_FREEBSD,   
-               test x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
-                 -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_FREEBSD)
-AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_AMD64_FREEBSD, 
-               test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD)
+AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_X86_DRAGONFLY,   
+               test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DRAGONFLY \
+                 -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_DRAGONFLY)
+AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_AMD64_DRAGONFLY, 
+               test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DRAGONFLY)
 AM_CONDITIONAL(VGCONF_PLATFORMS_INCLUDE_X86_DARWIN,   
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_DARWIN)
@@ -976,11 +955,11 @@ AM_CONDITIONAL(VGCONF_OS_IS_LINUX,
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xS390X_LINUX \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX)
- AM_CONDITIONAL(VGCONF_OS_IS_FREEBSD,
-                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
-                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
-                  -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC32_FREEBSD \
-                  -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC64_FREEBSD)
+ AM_CONDITIONAL(VGCONF_OS_IS_DRAGONFLY,
+                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DRAGONFLY \
+                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DRAGONFLY \
+                  -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC32_DRAGONFLY \
+                  -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC64_DRAGONFLY)
 AM_CONDITIONAL(VGCONF_OS_IS_DARWIN,
                test x$VGCONF_PLATFORM_PRI_CAPS = xX86_DARWIN \
                  -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DARWIN)
@@ -1080,13 +1059,13 @@ AC_EGREP_CPP([DARWIN_LIBC], [
 ],
 GLIBC_VERSION="darwin")
 
-AC_EGREP_CPP([FREEBSD_LIBC], [
+AC_EGREP_CPP([DRAGONFLY_LIBC], [
 #include <sys/cdefs.h>
-#if defined(__FreeBSD__)
-  FREEBSD_LIBC
+#if defined(__DragonFly__)
+  DRAGONFLY_LIBC
 #endif
 ],
-GLIBC_VERSION="freebsd")
+GLIBC_VERSION="dragonfly")
 
 # not really a version check
 AC_EGREP_CPP([BIONIC_LIBC], [
@@ -1154,9 +1133,9 @@ case "${GLIBC_VERSION}" in
 	AC_DEFINE([DARWIN_LIBC], 1, [Define to 1 if you're using Darwin])
 	# DEFAULT_SUPP set by kernel version check above.
 	;;
-     freebsd)
-	AC_MSG_RESULT(FreeBSD)
-	AC_DEFINE([FREEBSD_LIBC], 1, [Define to 1 if you're using FreeBSD])
+     dragonfly)
+	AC_MSG_RESULT(Dragonfly)
+	AC_DEFINE([DRAGONFLY_LIBC], 1, [Define to 1 if you're using Dragonfly])
 	# DEFAULT_SUPP set by kernel version check above.
 	;;
      bionic)
@@ -4214,14 +4193,14 @@ AC_PATH_PROG([MPI_CC], [mpicc], [mpicc],
 
 mflag_primary=
 if test x$VGCONF_PLATFORM_PRI_CAPS = xX86_LINUX \
-     -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_FREEBSD \
+     -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_DRAGONFLY \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xARM_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xX86_SOLARIS ; then
   mflag_primary=$FLAG_M32
 elif test x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_LINUX \
-       -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_FREEBSD \
+       -o x$VGCONF_PLATFORM_PRI_CAPS = xAMD64_DRAGONFLY \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xPPC64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xARM64_LINUX \
        -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \
@@ -4238,7 +4217,7 @@ if test x$VGCONF_PLATFORM_SEC_CAPS = xX86_LINUX \
      -o x$VGCONF_PLATFORM_SEC_CAPS = xPPC32_LINUX \
      -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_SOLARIS \
      -o x$VGCONF_PLATFORM_SEC_CAPS = xMIPS32_LINUX \
-     -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_FREEBSD ; then
+     -o x$VGCONF_PLATFORM_SEC_CAPS = xX86_DRAGONFLY ; then
   mflag_secondary=$FLAG_M32
 elif test x$VGCONF_PLATFORM_SEC_CAPS = xX86_DARWIN ; then
   mflag_secondary="$FLAG_M32 -arch i386"
@@ -4259,7 +4238,7 @@ AC_SUBST(MPI_CC)
 AM_COND_IF([VGCONF_OS_IS_LINUX],
            [CFLAGS_MPI="-g -O -fno-omit-frame-pointer -Wall -fpic"
             LDFLAGS_MPI="-fpic -shared"])
-AM_COND_IF([VGCONF_OS_IS_FREEBSD],
+AM_COND_IF([VGCONF_OS_IS_DRAGONFLY],
            [CFLAGS_MPI="-g -O -fno-omit-frame-pointer -Wall -fpic"
             LDFLAGS_MPI="-fpic -shared"])
 AM_COND_IF([VGCONF_OS_IS_DARWIN],
@@ -4758,8 +4737,8 @@ AC_CONFIG_FILES([
 ])
 AC_CONFIG_FILES([coregrind/link_tool_exe_linux],
                 [chmod +x coregrind/link_tool_exe_linux])
-AC_CONFIG_FILES([coregrind/link_tool_exe_freebsd],
-                [chmod +x coregrind/link_tool_exe_freebsd])
+AC_CONFIG_FILES([coregrind/link_tool_exe_dragonfly],
+                [chmod +x coregrind/link_tool_exe_dragonfly])
 AC_CONFIG_FILES([coregrind/link_tool_exe_darwin],
                 [chmod +x coregrind/link_tool_exe_darwin])
 AC_CONFIG_FILES([coregrind/link_tool_exe_solaris],

@@ -52,8 +52,8 @@
 #  include "vki/vki-darwin.h"
 #elif defined(VGO_solaris)
 #  include "vki/vki-solaris.h"
-#elif defined(VGO_freebsd)
-#  include "vki/vki-freebsd.h"
+#elif defined(VGO_dragonfly)
+#  include "vki/vki-dragonfly.h"
 #else
 #  error Unknown Plat/OS
 #endif

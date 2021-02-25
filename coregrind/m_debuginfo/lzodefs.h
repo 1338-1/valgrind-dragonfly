@@ -384,9 +384,9 @@
 #  if defined(_AIX) || defined(__AIX__) || defined(__aix__)
 #    define LZO_OS_POSIX_AIX        1
 #    define LZO_INFO_OS_POSIX       "aix"
-#  elif defined(__FreeBSD__)
-#    define LZO_OS_POSIX_FREEBSD    1
-#    define LZO_INFO_OS_POSIX       "freebsd"
+#  elif defined(__DragonFly__)
+#    define LZO_OS_POSIX_DRAGONFLY    1
+#    define LZO_INFO_OS_POSIX       "dragonfly"
 #  elif defined(__hpux__) || defined(__hpux)
 #    define LZO_OS_POSIX_HPUX       1
 #    define LZO_INFO_OS_POSIX       "hpux"

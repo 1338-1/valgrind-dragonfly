@@ -360,7 +360,7 @@ n-i-bz  Remove limit on strd's negative immediates
 
 === other/*BSD =========================================================
 
-368873  Please add FreeBSD to supported OS list
+368873  Please add Dragonfly to supported OS list
 
 === GDB server =========================================================
 
@@ -386,7 +386,7 @@ n-i-bz  Remove limit on strd's negative immediates
 
 === Documentation ======================================================
 
-368873  Please add FreeBSD to supported OS list
+368873  Please add Dragonfly to supported OS list
 
 === Uncategorised/run ==================================================
 

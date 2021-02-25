@@ -1213,7 +1213,7 @@ Bool VG_(is_soname_ld_so) (const HChar *soname)
    if (VG_STREQ(soname, VG_U_LD_SO_1))               return True;
    if (VG_STREQ(soname, VG_U_LD_LINUX_AARCH64_SO_1)) return True;
    if (VG_STREQ(soname, VG_U_LD_LINUX_ARMHF_SO_3))   return True;
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
    if (VG_STREQ(soname, VG_U_LD_ELF_SO_1))   return True;
    if (VG_STREQ(soname, VG_U_LD_ELF32_SO_1))   return True;
 #  elif defined(VGO_darwin)
@@ -1531,7 +1531,7 @@ void VG_(redir_initialise) ( void )
 #     endif
    }
 
-#  elif defined(VGP_x86_freebsd) || defined(VGP_amd64_freebsd)
+#  elif defined(VGP_x86_dragonfly) || defined(VGP_amd64_dragonfly)
 /* XXX do something real if needed */
 #  elif defined(VGP_x86_darwin)
    /* If we're using memcheck, use these intercepts right from

@@ -249,7 +249,7 @@ Thu 15 Sep 12:55:21 CEST 2016
 368866  WARNING: unhandled arm64-linux syscall: 238
 368868  disInstr(arm64): unhandled instruction 0xD53BE000 = cntfrq_el0 (ARMv8)
         (should fix this for 3.12.1)
-368873  Please add FreeBSD to supported OS list
+368873  Please add Dragonfly to supported OS list
 368913  WARNING: unhandled arm64-linux syscall: 117
 368914  WARNING: unhandled arm64-linux syscall: 142
 368916  WARNING: unhandled arm64-linux syscall: 234

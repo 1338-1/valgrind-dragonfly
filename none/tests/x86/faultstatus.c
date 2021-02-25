@@ -132,7 +132,7 @@ int main()
 	{
 		const struct test tests[] = {
 #define T(n, sig, code, addr) { test##n, sig, code, addr }
-#if !defined(__FreeBSD__) || __FreeBSD__ >= 5
+#if !defined(__DragonFly__) || __DragonFly__ >= 5
 			T(1, SIGILL,	ILL_ILLOPN,     &test1_ill),
 #endif
 

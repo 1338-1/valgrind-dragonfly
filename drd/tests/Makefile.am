@@ -426,7 +426,7 @@ check_PROGRAMS +=        \
   annotate_smart_pointer
 endif
 
-if !VGCONF_OS_IS_FREEBSD
+if !VGCONF_OS_IS_DRAGONFLY
 check_PROGRAMS += tsan_unittest
 endif
 
@@ -481,7 +481,7 @@ LDADD = -lpthread
 bug322621_SOURCES           = bug322621.cpp
 concurrent_close_SOURCES    = concurrent_close.cpp
 
-if !VGCONF_OS_IS_FREEBSD
+if !VGCONF_OS_IS_DRAGONFLY
 dlopen_main_LDADD           = -ldl
 endif
 

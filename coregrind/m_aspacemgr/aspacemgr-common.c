@@ -173,12 +173,12 @@ SysRes VG_(am_do_mmap_NO_NOTIFY)( Addr start, SizeT length, UInt prot,
    }
    res = VG_(do_syscall6)(__NR_mmap, (UWord)start, length,
                           prot, flags, (UInt)fd, offset);
-#  elif defined(VGP_x86_freebsd)
+#  elif defined(VGP_x86_dragonfly)
    if (flags & VKI_MAP_ANONYMOUS && fd == 0)
       fd = -1;
    res = VG_(do_syscall7)(__NR_mmap, (UWord)start, length,
 			  prot, flags, fd, offset, offset >> 32ul);
-#  elif defined(VGP_amd64_freebsd)
+#  elif defined(VGP_amd64_dragonfly)
    if (flags & VKI_MAP_ANONYMOUS && fd == 0)
       fd = -1;
    res = VG_(do_syscall6)(__NR_mmap, (UWord)start, length,
@@ -231,9 +231,9 @@ SysRes ML_(am_do_extend_mapping_NO_NOTIFY)(
              0/*flags, meaning: must be at old_addr, else FAIL */,
              0/*new_addr, is ignored*/
           );
-#  elif defined(VGO_freebsd)
+#  elif defined(VGO_dragonfly)
 #warning Not implemented
-   ML_(am_barf)("ML_(am_do_extend_mapping_NO_NOTIFY) on FreeBSD");
+   ML_(am_barf)("ML_(am_do_extend_mapping_NO_NOTIFY) on Dragonfly");
    /* NOTREACHED, but gcc doesn't understand that */
    return VG_(mk_SysRes_Error)(0);
 #  else
@@ -257,8 +257,8 @@ SysRes ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY)(
              VKI_MREMAP_MAYMOVE|VKI_MREMAP_FIXED/*move-or-fail*/,
              new_addr
           );
-#  elif defined(VGO_freebsd)
-   ML_(am_barf)("ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY) on FreeBSD");
+#  elif defined(VGO_dragonfly)
+   ML_(am_barf)("ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY) on Dragonfly");
    /* NOTREACHED, but gcc doesn't understand that */
    return VG_(mk_SysRes_Error)(0);
 #  else
@@ -276,7 +276,7 @@ SysRes ML_(am_open) ( const HChar* pathname, Int flags, Int mode )
    /* ARM64 wants to use __NR_openat rather than __NR_open. */
    SysRes res = VG_(do_syscall4)(__NR_openat,
                                  VKI_AT_FDCWD, (UWord)pathname, flags, mode);
-#  elif defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  elif defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    SysRes res = VG_(do_syscall3)(__NR_open, (UWord)pathname, flags, mode);
 #  elif defined(VGO_solaris)
    SysRes res = VG_(do_syscall4)(__NR_openat, VKI_AT_FDCWD, (UWord)pathname,
@@ -304,7 +304,7 @@ Int ML_(am_readlink)(const HChar* path, HChar* buf, UInt bufsiz)
 #  if defined(VGP_arm64_linux)
    res = VG_(do_syscall4)(__NR_readlinkat, VKI_AT_FDCWD,
                                            (UWord)path, (UWord)buf, bufsiz);
-#  elif defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  elif defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    res = VG_(do_syscall3)(__NR_readlink, (UWord)path, (UWord)buf, bufsiz);
 #  elif defined(VGO_solaris)
    res = VG_(do_syscall4)(__NR_readlinkat, VKI_AT_FDCWD, (UWord)path,
@@ -317,7 +317,7 @@ Int ML_(am_readlink)(const HChar* path, HChar* buf, UInt bufsiz)
 
 Int ML_(am_fcntl) ( Int fd, Int cmd, Addr arg )
 {
-#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
    SysRes res = VG_(do_syscall3)(__NR_fcntl, fd, cmd, arg);
 #  elif defined(VGO_darwin)
    SysRes res = VG_(do_syscall3)(__NR_fcntl_nocancel, fd, cmd, arg);
@@ -333,7 +333,7 @@ Bool ML_(am_get_fd_d_i_m)( Int fd,
                            /*OUT*/ULong* dev, 
                            /*OUT*/ULong* ino, /*OUT*/UInt* mode )
 {
-#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_freebsd)
+#  if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_dragonfly)
    SysRes          res;
    struct vki_stat buf;
 #  if defined(VGO_linux) && defined(__NR_fstat64)
@@ -379,7 +379,7 @@ Bool ML_(am_get_fd_d_i_m)( Int fd,
 #  endif
 }
 
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
 #define	M_FILEDESC_BUF	1000000
 static Char filedesc_buf[M_FILEDESC_BUF];
 #endif
@@ -396,7 +396,7 @@ Bool ML_(am_resolve_filename) ( Int fd, /*OUT*/HChar* buf, Int nbuf )
    else
       return False;
 
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
    Int mib[4];
    SysRes sres;
    vki_size_t len;

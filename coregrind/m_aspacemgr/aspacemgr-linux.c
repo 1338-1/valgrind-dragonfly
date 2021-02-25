@@ -4,7 +4,7 @@
 /*--- The address space manager: segment initialisation and        ---*/
 /*--- tracking, stack operations                                   ---*/
 /*---                                                              ---*/
-/*--- Implementation for Linux, FreeBSD and Darwin                 ---*/
+/*--- Implementation for Linux, Dragonfly and Darwin                 ---*/
 /*--------------------------------------------------------------------*/
 
 /*
@@ -32,7 +32,7 @@
    The GNU General Public License is contained in the file COPYING.
 */
 
-#if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_solaris) || defined(VGO_freebsd)
+#if defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_solaris) || defined(VGO_dragonfly)
 
 /* *************************************************************
    DO NOT INCLUDE ANY OTHER FILES HERE.
@@ -873,7 +873,7 @@ static void sync_check_mapping_callback ( Addr addr, SizeT len, UInt prot,
          cmp_devino = False;
 #endif
 
-#if defined(VGO_darwin) || defined(VGO_freebsd)
+#if defined(VGO_darwin) || defined(VGO_dragonfly)
       // GrP fixme kernel info doesn't have dev/inode
       cmp_devino = False;
       
@@ -1639,9 +1639,9 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
 
    suggested_clstack_end = -1; // ignored; Mach-O specifies its stack
 
-   // --- Freebsd ------------------------------------------
+   // --- Dragonfly ------------------------------------------
    
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 
 # if VG_WORDSIZE == 4
    aspacem_maxAddr = VG_PGROUNDDN( sp_at_startup ) - 1;
@@ -3827,9 +3827,9 @@ Bool VG_(get_changed_segments)(
 
 /*------END-procmaps-parser-for-Darwin---------------------------*/
 
-/*------BEGIN-procmaps-parser-for-Freebsd------------------------*/
+/*------BEGIN-procmaps-parser-for-Dragonfly------------------------*/
 
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 
  /* Size of a smallish table used to read /proc/self/map entries. */
  #define M_PROCMAP_BUF 10485760	/* 10M */
@@ -3905,7 +3905,7 @@ static void parse_procselfmaps (
        (*record_gap) ( gapStart, Addr_MAX - gapStart + 1 );
 }
 
-/*------END-procmaps-parser-for-Freebsd--------------------------*/
+/*------END-procmaps-parser-for-Dragonfly--------------------------*/
 
 /*------BEGIN-procmaps-parser-for-Solaris------------------------*/
 
@@ -4219,7 +4219,7 @@ Bool VG_(am_search_for_new_segment)(Addr *addr, SizeT *size, UInt *prot)
 
 /*------END-procmaps-parser-for-Solaris--------------------------*/
 
-#endif // defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_solaris) || defined(VGO_freebsd)
+#endif // defined(VGO_linux) || defined(VGO_darwin) || defined(VGO_solaris) || defined(VGO_dragonfly)
 
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/

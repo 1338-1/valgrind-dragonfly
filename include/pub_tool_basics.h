@@ -104,7 +104,7 @@ typedef  Word                 PtrdiffT;   // 32             64
 // always a signed 64-bit int.  So we defined our own Off64T as well.
 #if defined(VGO_linux) || defined(VGO_solaris)
 typedef Word                   OffT;      // 32             64
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 typedef Long                   OffT;      // 64             64
 #elif defined(VGO_darwin)
 typedef Long                   OffT;      // 64             64
@@ -229,7 +229,7 @@ typedef
       SysResMode _mode;
    }
    SysRes;
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 typedef
    struct {
       UWord _val;
@@ -314,7 +314,7 @@ static inline Bool sr_EQ ( UInt sysno, SysRes sr1, SysRes sr2 ) {
           && sr1._isError == sr2._isError;
 }
 
-#elif defined(VGO_freebsd)
+#elif defined(VGO_dragonfly)
 
 static inline Bool sr_isError ( SysRes sr ) {
    return sr._isError;

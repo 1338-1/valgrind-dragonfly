@@ -812,7 +812,7 @@ Not enough info to do anything with this
 === zz_other/*BSD ======================================================
 
 (carried over)
-368873  Please add FreeBSD to supported OS list
+368873  Please add Dragonfly to supported OS list
 
 === zz_other/mips ======================================================
 

@@ -7,7 +7,7 @@
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
-#if defined(VGO_freebsd)
+#if defined(VGO_dragonfly)
 #include <sys/fcntl.h>
 #endif
 pthread_mutex_t mx[4]; 
@@ -110,7 +110,7 @@ static sem_t* my_sem_init (char* identity, int pshared, unsigned count)
 	 s = NULL;
       }
    }
-#elif defined(VGO_darwin) || defined(VGO_freebsd)
+#elif defined(VGO_darwin) || defined(VGO_dragonfly)
    char name[100];
    sprintf(name, "anonsem_%s_pid%d", identity, (int)getpid());
    name[ sizeof(name)-1 ] = 0;

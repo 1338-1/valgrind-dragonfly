@@ -58,12 +58,12 @@
 extern Addr VG_(trampoline_stuff_start);
 extern Addr VG_(trampoline_stuff_end);
 
-#if defined(VGP_x86_freebsd)
-extern void VG_(x86_freebsd_SUBST_FOR_sigreturn);
+#if defined(VGP_x86_dragonfly)
+extern void VG_(x86_dragonfly_SUBST_FOR_sigreturn);
 #endif
 
-#if defined(VGP_amd64_freebsd)
-extern void VG_(amd64_freebsd_SUBST_FOR_sigreturn);
+#if defined(VGP_amd64_dragonfly)
+extern void VG_(amd64_dragonfly_SUBST_FOR_sigreturn);
 #endif
 
 #if defined(VGP_x86_linux)

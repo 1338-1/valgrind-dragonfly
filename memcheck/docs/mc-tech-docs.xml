@@ -532,7 +532,7 @@ result:</para>
     <filename>vg_kerneliface.h</filename> file is that it makes
     it simpler to interface to a different kernel.  Once can, for
     example, easily imagine writing a new
-    <filename>vg_kerneliface.h</filename> for FreeBSD, or x86
+    <filename>vg_kerneliface.h</filename> for Dragonfly, or x86
     NetBSD.</para>
   </listitem>
 
@@ -2377,7 +2377,7 @@ suite.</para>
 <sect2 id="mc-tech-docs.porting" xreflabel="Porting to other platforms">
 <title>Porting to other platforms</title>
 
-<para>It would be great if Valgrind was ported to FreeBSD and x86
+<para>It would be great if Valgrind was ported to Dragonfly and x86
 NetBSD, and to x86 OpenBSD, if it's possible (doesn't OpenBSD use
 a.out-style executables, not ELF ?)</para>
 

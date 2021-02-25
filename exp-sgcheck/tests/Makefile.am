@@ -53,7 +53,7 @@ if VGCONF_OS_IS_DARWIN
  preen_invars_LDADD            = -ldl
  preen_invars_LDFLAGS          = $(AM_FLAG_M3264_PRI)
 else
-if !VGCONF_OS_IS_FREEBSD
+if !VGCONF_OS_IS_DRAGONFLY
  preen_invars_LDADD            = -ldl
 endif
  preen_invars_LDFLAGS          = $(AM_FLAG_M3264_PRI) \

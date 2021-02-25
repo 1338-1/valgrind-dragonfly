@@ -30,7 +30,7 @@ int main ( void )
    int  res;
    assert(sizeof(long int) == sizeof(void*));
 
-#if !defined(__FreeBSD__)
+#if !defined(__DragonFly__)
    // Check behaviour of memalign/free for big alignment.
    // In particular, the below aims at checking that a
    // superblock with a big size is not marked as reclaimable
@@ -83,7 +83,7 @@ int main ( void )
 
 #  define PM(a,b,c) posix_memalign((void**)a, b, c)
 
-#if !defined(__FreeBSD__) || __FreeBSD__ >= 6
+#if !defined(__DragonFly__) || __DragonFly__ >= 6
    res = PM(&p, -1,100);      assert(EINVAL == res);
    res = PM(&p, 0, 100);      assert(EINVAL == res);
    res = PM(&p, 1, 100);      assert(EINVAL == res);

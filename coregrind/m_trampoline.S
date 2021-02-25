@@ -853,15 +853,15 @@ VG_(trampoline_stuff_end):
 #	undef UD2_1024
 #	undef UD2_PAGE
         
-/*---------------- x86-freebsd ----------------*/
+/*---------------- x86-dragonfly ----------------*/
 #else
-#if defined(VGP_x86_freebsd)
+#if defined(VGP_x86_dragonfly)
 
 .global VG_(trampoline_stuff_start)
 VG_(trampoline_stuff_start):
 
-.global VG_(x86_freebsd_SUBST_FOR_sigreturn)
-VG_(x86_freebsd_SUBST_FOR_sigreturn):
+.global VG_(x86_dragonfly_SUBST_FOR_sigreturn)
+VG_(x86_dragonfly_SUBST_FOR_sigreturn):
 	lea	0x14(%esp), %eax	/* args to sigreturn(ucontext_t *) */
 	pushl	%eax
 	pushl	%eax			/* fake return addr */
@@ -874,7 +874,7 @@ VG_(x86_freebsd_SUBST_FOR_sigreturn):
 VG_(trampoline_stuff_end):
 
 #else
-#if defined(VGP_amd64_freebsd)
+#if defined(VGP_amd64_dragonfly)
 
 #	define UD2_16     ud2 ; ud2 ; ud2 ; ud2 ;ud2 ; ud2 ; ud2 ; ud2
 #	define UD2_64     UD2_16   ; UD2_16   ; UD2_16   ; UD2_16
@@ -888,8 +888,8 @@ VG_(trampoline_stuff_end):
 .global VG_(trampoline_stuff_start)
 VG_(trampoline_stuff_start):
 
-.global VG_(amd64_freebsd_SUBST_FOR_sigreturn)
-VG_(amd64_freebsd_SUBST_FOR_sigreturn):
+.global VG_(amd64_dragonfly_SUBST_FOR_sigreturn)
+VG_(amd64_dragonfly_SUBST_FOR_sigreturn):
         /* This is a very specific sequence which GDB uses to
            recognize signal handler frames. */
         movq    $__NR_fake_sigreturn, %rax
