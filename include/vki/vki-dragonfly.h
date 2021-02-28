@@ -337,12 +337,12 @@ struct vki_tms {
 // From sys/stat.h
 //----------------------------------------------------------------------
 
-/* QQQ 4.x stat layout */
 struct vki_stat {
-	vki_dev_t	st_dev;
 	vki_ino_t	st_ino;
-	vki_mode_t	st_mode;
 	vki_nlink_t	st_nlink;
+	vki_dev_t	st_dev;
+	vki_mode_t	st_mode;
+	vki_uint16_t	st_padding1;
 	vki_uid_t	st_uid;
 	vki_gid_t	st_gid;
 	vki_dev_t	st_rdev;
@@ -360,13 +360,12 @@ struct vki_stat {
 #endif
 	vki_off_t	st_size;
 	vki_blkcnt_t	st_blocks;
-	vki_blksize_t	st_blksize;
-	vki_fflags_t	st_flags;
+	vki_uint32_t	__old_st_blksize;
+	vki_uint32_t	st_flags;
 	vki_uint32_t	st_gen;
 	vki_int32_t	st_lspare;
-	struct vki_timespec	st_birthtimespec;
-	unsigned int :(8 / 2) * (16 - (int)sizeof(struct vki_timespec));
-	unsigned int :(8 / 2) * (16 - (int)sizeof(struct vki_timespec));
+	vki_blksize_t	st_blksize;
+	vki_int64_t	st_qspare2;
 };
 
 
@@ -1575,6 +1574,8 @@ struct vki_dirent {
 #define VKI_X_OK	0x01    /* test for execute or search permission */
 #define VKI_W_OK	0x02    /* test for write permission */
 #define VKI_R_OK	0x04    /* test for read permission */
+
+#define VKI_EXTEXIT_LWP (1<<16)
 
 //----------------------------------------------------------------------
 // From sys/msg.h
