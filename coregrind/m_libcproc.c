@@ -688,9 +688,12 @@ Int VG_(gettid)(void)
    SysRes res;
    long tid;
 
-   res = VG_(do_syscall1)(__NR_thr_self, (UWord)&tid);   
+   res = VG_(do_syscall0)(__NR_lwp_gettid);
    if (sr_isError(res))
-      tid = sr_Res(VG_(do_syscall0)(__NR_getpid));
+       tid = sr_Res(VG_(do_syscall0)(__NR_getpid));
+   else
+       tid = sr_Res(res);
+
    return tid;
    
 #  elif defined(VGO_darwin)

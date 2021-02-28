@@ -1117,6 +1117,8 @@ void read_elf_symtab__ppc64be_linux(
    VG_(OSetGen_Destroy)( oset );
 }
 
+/* from perf/ */
+#define ELF_NOTE_GNU "GNU"
 
 /*
  * Look for a build-id in an ELF image. The build-id specification

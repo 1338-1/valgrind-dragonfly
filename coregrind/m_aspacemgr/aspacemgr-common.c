@@ -397,37 +397,15 @@ Bool ML_(am_resolve_filename) ( Int fd, /*OUT*/HChar* buf, Int nbuf )
       return False;
 
 #elif defined(VGO_dragonfly)
-   Int mib[4];
-   SysRes sres;
-   vki_size_t len;
-   Char *bp, *eb;
-   struct vki_kinfo_file *kf;
-
-   mib[0] = VKI_CTL_KERN;
-   mib[1] = VKI_KERN_PROC;
-   mib[2] = VKI_KERN_PROC_FILEDESC;
-   mib[3] = sr_Res(VG_(do_syscall0)(__NR_getpid));
-   len = sizeof(filedesc_buf);
-   sres = VG_(do_syscall6)(__NR___sysctl, (UWord)mib, 4, (UWord)filedesc_buf,
-      (UWord)&len, 0, 0);
-   if (sr_isError(sres)) {
-       VG_(debugLog)(0, "sysctl(kern.proc.filedesc)", "%s\n", VG_(strerror)(sr_Err(sres)));
-       ML_(am_exit)(1);
+   HChar tmp[VKI_MAXPATHLEN+1];
+   if (0 == ML_(am_fcntl)(fd, VKI_F_GETPATH, (UWord)tmp)) {
+      if (nbuf > 0) {
+         VG_(strncpy)( buf, tmp, nbuf < sizeof(tmp) ? nbuf : sizeof(tmp) );
+         buf[nbuf-1] = 0;
+      }
+      if (tmp[0] == '/') return True;
    }
-   /* Walk though the list. */
-   bp = filedesc_buf;
-   eb = filedesc_buf + len;
-   while (bp < eb) {
-      kf = (struct vki_kinfo_file *)bp;
-      if (kf->kf_fd == fd)
-         break;
-      bp += kf->kf_structsize;
-   }
-   if (bp >= eb || *kf->kf_path == '\0')
-     VG_(strncpy)( buf, "[unknown]", nbuf );
-   else
-     VG_(strncpy)( buf, kf->kf_path, nbuf );
-   return True;
+   return False;
 #elif defined(VGO_darwin)
    HChar tmp[VKI_MAXPATHLEN+1];
    if (0 == ML_(am_fcntl)(fd, VKI_F_GETPATH, (UWord)tmp)) {
@@ -438,7 +416,6 @@ Bool ML_(am_resolve_filename) ( Int fd, /*OUT*/HChar* buf, Int nbuf )
       if (tmp[0] == '/') return True;
    }
    return False;
-
 #elif defined(VGO_solaris)
    Int i;
    HChar tmp[64];

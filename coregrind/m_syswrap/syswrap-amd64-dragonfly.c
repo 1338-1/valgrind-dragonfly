@@ -118,6 +118,8 @@ void VG_(cleanup_thread) ( ThreadArchState *arch )
 #define PRE(name)       DEFN_PRE_TEMPLATE(dragonfly, name)
 #define POST(name)      DEFN_POST_TEMPLATE(dragonfly, name)
 
+#if 0 
+
 PRE(sys_thr_new)
 {
    static const Bool debug = False;
@@ -244,6 +246,8 @@ fail:
    /* "Complete" the syscall so that the wrapper doesn't call the kernel again. */
    SET_STATUS_from_SysRes(res);
 }
+
+#endif
 
 PRE(sys_rfork)
 {

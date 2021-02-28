@@ -196,30 +196,18 @@ static void run_a_thread_NORETURN ( Word tidW )
          reallocation.  We need to make sure we don't touch the stack
          between marking it Empty and exiting.  Hence the
          assembler. */
-#if defined(VGP_x86_dragonfly)	/* Dragonfly has args on the stack */
+#if defined(VGP_amd64_dragonfly)
       asm volatile (
          "movl	%1, %0\n"	/* set tst->status = VgTs_Empty */
-         "movl	%2, %%eax\n"    /* set %eax = __NR_thr_exit */
-         "movl	%3, %%ebx\n"    /* set %ebx = tst->os_state.exitcode */
-	 "pushl	%%ebx\n"	/* arg on stack */
-	 "pushl	%%ebx\n"	/* fake return address */
-         "int	$0x80\n"	/* thr_exit(tst->os_state.exitcode) */
-	 "popl	%%ebx\n"	/* fake return address */
-	 "popl	%%ebx\n"	/* arg off stack */
-         : "=m" (tst->status)
-         : "n" (VgTs_Empty), "n" (__NR_thr_exit), "m" (tst->os_state.exitcode)
-         : "eax", "ebx"
-      );
-#elif defined(VGP_amd64_dragonfly)
-      asm volatile (
-         "movl	%1, %0\n"	/* set tst->status = VgTs_Empty */
-         "movq	%2, %%rax\n"    /* set %rax = __NR_thr_exit */
-         "movq	%3, %%rdi\n"    /* set %rdi = tst->os_state.exitcode */
-	 "pushq	%%rdi\n"	/* fake return address */
-         "syscall\n"		/* thr_exit(tst->os_state.exitcode) */
+         "movq	%2, %%rax\n"    /* set %rax = __NR_extexit */
+         "movq	%3, %%rdi\n"    /* set %rdi = EXTEXIT_LWP */
+         "movq	$0, %%rsi\n"    /* set %rsi = 0
+         "movq	$0, %%rdx\n"    /* set %rdx = 0
+	 "pushq	%%rdi\n"	/* fake return address (idk) */
+         "syscall\n"		/* extexit(EXTEXIT_LWP, 0, 0)
 	 "popq	%%rdi\n"	/* fake return address */
          : "=m" (tst->status)
-         : "n" (VgTs_Empty), "n" (__NR_thr_exit), "m" (tst->os_state.exitcode)
+         : "n" (VgTs_Empty), "n" (__NR_extexit), "n" (VKI_EXTEXIT_LWP)
          : "rax", "rdi"
       );
 #else
@@ -3812,7 +3800,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    GENX_(__NR_chown,			sys_chown),			// 16
    GENX_(__NR_break,			sys_brk),			// 17
-   BSDXY(__NR_getfsstat4,		sys_getfsstat4),		// 18
+   //BSDXY(__NR_getfsstat4,		sys_getfsstat4),		// 18
    // 4.3 lseek								   19
 
    GENX_(__NR_getpid,			sys_getpid),			// 20
@@ -4006,8 +3994,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // BSDXY(__NR_shmsys,			sys_shmsys),			// 171
 
    // nosys								   172
-   BSDXY(__NR_pread6,			sys_pread),			// 173
-   BSDX_(__NR_pwrite6,			sys_pwrite),			// 174
+   //BSDXY(__NR_pread6,			sys_pread),			// 173
+   //BSDX_(__NR_pwrite6,			sys_pwrite),			// 174
    // nosys								   175
 
 // BSDXY(__NR_ntp_adjtime,		sys_ntp_adjtime),		// 176
@@ -4036,9 +4024,9 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_setrlimit,		sys_setrlimit),			// 195
 
    BSDXY(__NR_getdirentries,		sys_getdirentries),		// 196
-   BSDX_(__NR_mmap6,			sys_mmap7),			// 197
+   //BSDX_(__NR_mmap6,			sys_mmap7),			// 197
    // __syscall (handled specially)					// 198
-   BSDX_(__NR_lseek6,			sys_lseek),			// 199
+   //BSDX_(__NR_lseek6,			sys_lseek),			// 199
 
    BSDX_(__NR_truncate,			sys_truncate),			// 200
    BSDX_(__NR_ftruncate,		sys_ftruncate),			// 201
@@ -4052,20 +4040,20 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // netbsd newreboot							   208
    GENXY(__NR_poll,			sys_poll),			// 209
-   BSDX_(__NR_lkmnosys0,		sys_lkmnosys0),			// 210
-   BSDX_(__NR_lkmnosys1,		sys_lkmnosys1),			// 211
+   //BSDX_(__NR_lkmnosys0,		sys_lkmnosys0),			// 210
+   //BSDX_(__NR_lkmnosys1,		sys_lkmnosys1),			// 211
 
-   BSDX_(__NR_lkmnosys2,		sys_lkmnosys2),			// 212
-   BSDX_(__NR_lkmnosys3,		sys_lkmnosys3),			// 213
-   BSDX_(__NR_lkmnosys4,		sys_lkmnosys4),			// 214
-   BSDX_(__NR_lkmnosys5,		sys_lkmnosys5),			// 215
+   //BSDX_(__NR_lkmnosys2,		sys_lkmnosys2),			// 212
+   //BSDX_(__NR_lkmnosys3,		sys_lkmnosys3),			// 213
+   //BSDX_(__NR_lkmnosys4,		sys_lkmnosys4),			// 214
+   //BSDX_(__NR_lkmnosys5,		sys_lkmnosys5),			// 215
 
-   BSDX_(__NR_lkmnosys6,		sys_lkmnosys6),			// 216
-   BSDX_(__NR_lkmnosys7,		sys_lkmnosys7),			// 217
-   BSDX_(__NR_lkmnosys8,		sys_lkmnosys8),			// 218
+   //BSDX_(__NR_lkmnosys6,		sys_lkmnosys6),			// 216
+   //BSDX_(__NR_lkmnosys7,		sys_lkmnosys7),			// 217
+   //BSDX_(__NR_lkmnosys8,		sys_lkmnosys8),			// 218
 // BSDXY(__NR_nfs_fhopen,		sys_nfs_fhopen),		// 219
 
-   BSDXY(__NR___semctl7,		sys___semctl7),			// 220
+   //BSDXY(__NR___semctl7,		sys___semctl7),			// 220
    BSDX_(__NR_semget,			sys_semget),			// 221
    BSDX_(__NR_semop,			sys_semop),			// 222
    // unimpl semconfig							   223
@@ -4076,7 +4064,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // BSDXY(__NR_msgrcv,			sys_msgrcv),			// 227
 
    BSDXY(__NR_shmat,			sys_shmat),				// 228
-   BSDXY(__NR_shmctl7,			sys_shmctl7),			// 229
+   //BSDXY(__NR_shmctl7,			sys_shmctl7),			// 229
    BSDXY(__NR_shmdt,			sys_shmdt),				// 230
    BSDX_(__NR_shmget,			sys_shmget),			// 231
 
@@ -4217,7 +4205,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    BSDXY(__NR_sigprocmask,		sys_sigprocmask),		// 340
    BSDX_(__NR_sigsuspend,		sys_sigsuspend),		// 341
-   BSDXY(__NR_sigaction4,		sys_sigaction4),		// 342
+   //BSDXY(__NR_sigaction4,		sys_sigaction4),		// 342
    BSDXY(__NR_sigpending,		sys_sigpending),		// 343
 
 //   BSDX_(__NR_sigreturn4,		sys_sigreturn4),			// 344
@@ -4283,11 +4271,11 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_uuidgen,			sys_uuidgen),			// 392
    BSDXY(__NR_sendfile,			sys_sendfile),			// 393
    // mac_syscall							   394
-   BSDXY(__NR_getfsstat,		sys_getfsstat),			// 395
+   //BSDXY(__NR_getfsstat,		sys_getfsstat),			// 395
 
-   BSDXY(__NR_statfs6,			sys_statfs6),			// 396
-   BSDXY(__NR_fstatfs6,			sys_fstatfs6),			// 397
-   BSDXY(__NR_fhstatfs6,		sys_fhstatfs6),			// 398
+   //BSDXY(__NR_statfs6,			sys_statfs6),			// 396
+   //BSDXY(__NR_fstatfs6,			sys_fstatfs6),			// 397
+   //BSDXY(__NR_fhstatfs6,		sys_fhstatfs6),			// 398
    // nosys								   399
 
    // ksem_close							   400
@@ -4316,24 +4304,24 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // __xfstat								   419
 
    // __xlstat								   420
-   BSDXY(__NR_getcontext,		sys_getcontext),		// 421
-   BSDX_(__NR_setcontext,		sys_setcontext),		// 422
-   BSDXY(__NR_swapcontext,		sys_swapcontext),		// 423
+   //BSDXY(__NR_getcontext,		sys_getcontext),		// 421
+   //BSDX_(__NR_setcontext,		sys_setcontext),		// 422
+   //BSDXY(__NR_swapcontext,		sys_swapcontext),		// 423
 
    // swapoff								   424
-   BSDXY(__NR___acl_get_link,		sys___acl_get_link),		// 425
-   BSDX_(__NR___acl_set_link,		sys___acl_set_link),		// 426
-   BSDX_(__NR___acl_delete_link,	sys___acl_delete_link),		// 427
+   //BSDXY(__NR___acl_get_link,		sys___acl_get_link),		// 425
+   //BSDX_(__NR___acl_set_link,		sys___acl_set_link),		// 426
+   //BSDX_(__NR___acl_delete_link,	sys___acl_delete_link),		// 427
 
-   BSDX_(__NR___acl_aclcheck_link,	sys___acl_aclcheck_link),	// 428
+   //BSDX_(__NR___acl_aclcheck_link,	sys___acl_aclcheck_link),	// 428
    //!sigwait								   429
    // thr_create							   430
-   BSDX_(__NR_thr_exit,			sys_thr_exit),			// 431
+   //BSDX_(__NR_thr_exit,			sys_thr_exit),			// 431
 
-   BSDXY(__NR_thr_self, 		sys_thr_self),			// 432
-   BSDXY(__NR_thr_kill,                 sys_thr_kill),			// 433
-   BSDXY(__NR__umtx_lock,		sys__umtx_lock),		// 434
-   BSDXY(__NR__umtx_unlock,		sys__umtx_unlock),		// 435
+   //BSDXY(__NR_thr_self, 		sys_thr_self),			// 432
+   //BSDXY(__NR_thr_kill,                 sys_thr_kill),			// 433
+   //BSDXY(__NR__umtx_lock,		sys__umtx_lock),		// 434
+   //BSDXY(__NR__umtx_unlock,		sys__umtx_unlock),		// 435
 
    // jail_attach							   436
    // extattr_list_fd							   437
@@ -4343,7 +4331,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // kse_switchin							   440
    // ksem_timedwait							   441
    // thr_suspend							   442
-   BSDX_(__NR_thr_wake,			sys_thr_wake),			// 443
+   //BSDX_(__NR_thr_wake,			sys_thr_wake),			// 443
    // kldunloadf							   444
    // audit								   445
    // auditon								   446
@@ -4356,22 +4344,22 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // setaudit_addr							   452
    // auditctl								   453
-   BSDXY(__NR__umtx_op,			sys__umtx_op),			// 454
-   BSDX_(__NR_thr_new,			sys_thr_new),			// 455
+   //BSDXY(__NR__umtx_op,			sys__umtx_op),			// 454
+   //BSDX_(__NR_thr_new,			sys_thr_new),			// 455
 
    // sigqueue								   456
-   BSDXY(__NR_kmq_open,          sys_mq_open),			// 457
+   //BSDXY(__NR_kmq_open,          sys_mq_open),			// 457
    // kmq_setattr							   458
    // kmq_timedreceive							   459
 
    // kmq_timedsend							   460
    // kmq_notify							   461
-   BSDX_(__NR_kmq_unlink,        sys_mq_unlink),			// 462
+   //BSDX_(__NR_kmq_unlink,        sys_mq_unlink),			// 462
    // abort2								   463
 
-   BSDX_(__NR_thr_set_name,		sys_thr_set_name),		// 464
+   //BSDX_(__NR_thr_set_name,		sys_thr_set_name),		// 464
    // aio_fsync								   465
-   BSDXY(__NR_rtprio_thread,		sys_rtprio_thread),		// 466
+   //BSDXY(__NR_rtprio_thread,		sys_rtprio_thread),		// 466
    // nosys								   467
 
    // nosys								   468
@@ -4382,31 +4370,31 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // sctp_generic_sendmsg						   472
    // sctp_generic_sendmsg_iov						   473
    // sctp_generic_recvmsg						   474
-   BSDXY(__NR_pread,			sys_pread7),			// 475
+   //BSDXY(__NR_pread,			sys_pread7),			// 475
 
-   BSDX_(__NR_pwrite,			sys_pwrite7),			// 476
+   //BSDX_(__NR_pwrite,			sys_pwrite7),			// 476
    BSDX_(__NR_mmap,			sys_mmap7),			// 477
    BSDX_(__NR_lseek,			sys_lseek7),			// 478
-   BSDX_(__NR_truncate7,		sys_truncate7),			// 479
+   //BSDX_(__NR_truncate7,		sys_truncate7),			// 479
 
-   BSDX_(__NR_ftruncate7,		sys_ftruncate7),		// 480
-   BSDXY(__NR_thr_kill2,                sys_thr_kill2),			// 481
-   BSDXY(__NR_shm_open,			sys_shm_open),			// 482
-   BSDX_(__NR_shm_unlink,		sys_shm_unlink),		// 483
+   BSDX_(__NR_ftruncate,		sys_ftruncate),		// 480
+   //BSDXY(__NR_thr_kill2,                sys_thr_kill2),			// 481
+   //BSDXY(__NR_shm_open,			sys_shm_open),			// 482
+   //BSDX_(__NR_shm_unlink,		sys_shm_unlink),		// 483
 
    // cpuset								   484
    // cpuset_setid							   485
    // cpuset_getid							   486
 
-   BSDXY(__NR_cpuset_getaffinity,	sys_cpuset_getaffinity),	// 487
-   BSDX_(__NR_cpuset_setaffinity,	sys_cpuset_setaffinity),	// 488
+   //BSDXY(__NR_cpuset_getaffinity,	sys_cpuset_getaffinity),	// 487
+   //BSDX_(__NR_cpuset_setaffinity,	sys_cpuset_setaffinity),	// 488
    BSDX_(__NR_faccessat,		sys_faccessat),			// 489
    BSDX_(__NR_fchmodat,			sys_fchmodat),			// 490
    BSDX_(__NR_fchownat,			sys_fchownat),			// 491
 
    // fexecve								   492
    BSDXY(__NR_fstatat,			sys_fstatat),			// 493
-   BSDX_(__NR_futimesat,		sys_futimesat),			// 494
+   //BSDX_(__NR_futimesat,		sys_futimesat),			// 494
    BSDX_(__NR_linkat,			sys_linkat),			// 495
 
    BSDX_(__NR_mkdirat,			sys_mkdirat),			// 496

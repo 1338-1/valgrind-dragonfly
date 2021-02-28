@@ -891,7 +891,7 @@ SysRes VG_(pread) ( Int fd, void* buf, Int count, OffT offset )
    return res;
 #  elif defined(VGP_amd64_dragonfly)
    vg_assert(sizeof(OffT) == 8);
-   res = VG_(do_syscall4)(__NR_pread, fd, (UWord)buf, count, offset);
+   res = VG_(do_syscall5)(__NR_extpread, fd, (UWord)buf, count, 0, offset);
    return res;
 #  elif defined(VGP_x86_dragonfly)
    vg_assert(sizeof(OffT) == 8);
