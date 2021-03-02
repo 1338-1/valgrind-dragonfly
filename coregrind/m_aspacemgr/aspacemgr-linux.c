@@ -3940,7 +3940,7 @@ static void parse_procselfmaps (
 
 	/* afaik no way to get file offset information */
 	if (record_mapping)
-	    (*record_mapping)(start, end - start - 1, prot, dev, ino, 0, ptr);
+	    (*record_mapping)(start, end - start, prot, dev, ino, 0, ptr);
     }
 
     /* old

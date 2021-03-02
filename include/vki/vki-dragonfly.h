@@ -122,7 +122,7 @@ typedef	vki_uint64_t	__vki_fsblkcnt_t;
 typedef	vki_uint64_t	__vki_fsfilcnt_t;
 typedef	vki_uint32_t	__vki_gid_t;
 typedef	vki_int64_t	__vki_id_t;	
-typedef	vki_uint32_t	__vki_ino_t;
+typedef	vki_uint64_t	__vki_ino_t;
 typedef	vki_int32_t	__vki_lwpid_t;
 typedef	vki_uint16_t	__vki_mode_t;
 typedef	vki_uint16_t	__vki_nlink_t;
