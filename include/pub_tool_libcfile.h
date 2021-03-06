@@ -71,6 +71,7 @@ struct vg_stat {
    ULong   ctime_nsec;
 };
 
+extern SysRes VG_(mkfifo) ( const HChar* pathname, Int mode );
 extern SysRes VG_(mknod)  ( const HChar* pathname, Int mode, UWord dev );
 extern SysRes VG_(open)   ( const HChar* pathname, Int flags, Int mode );
 /* fd_open words like the open(2) system call: 

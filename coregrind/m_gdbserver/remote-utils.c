@@ -261,7 +261,7 @@ static
 void safe_mknod (char *nod)
 {
    SysRes m;
-   m = VG_(mknod) (nod, VKI_S_IFIFO|0600, 0);
+   m = VG_(mkfifo)(nod, 0600);
    if (sr_isError (m)) {
       if (sr_Err (m) == VKI_EEXIST) {
          if (VG_(clo_verbosity) > 1) {

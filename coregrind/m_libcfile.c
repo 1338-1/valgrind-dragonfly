@@ -140,6 +140,18 @@ Bool VG_(resolve_filename) ( Int fd, const HChar** result )
 #  endif
 }
 
+/* For whatever reason mknod(S_FIFO) fails on DragonflyBSD, so we need this */
+SysRes VG_(mkfifo) ( const HChar* pathname, Int mode )
+{
+#  if defined(VGO_dragonfly)
+   SysRes res = VG_(do_syscall2)(__NR_mkfifo, pathname, mode);
+#  else
+#    error Unknown OS
+#  endif
+   return res;
+}
+
+
 SysRes VG_(mknod) ( const HChar* pathname, Int mode, UWord dev )
 {
 #  if defined(VGP_arm64_linux)
