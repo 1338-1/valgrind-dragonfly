@@ -47,7 +47,7 @@
 #include "pub_core_debuginfo.h"  // Needed for pub_core_redir.h
 #include "pub_core_redir.h"      // For VG_NOTIFY_ON_LOAD
 
-#if defined(VGO_linux) || defined(VGO_solaris)
+#if defined(VGO_linux) || defined(VGO_solaris) || defined(VGO_dragonfly)
 
 /* ---------------------------------------------------------------------
    Hook for running __gnu_cxx::__freeres() and __libc_freeres() once
@@ -211,7 +211,6 @@ void VG_REPLACE_FUNCTION_ZU(libSystemZdZaZddylib, arc4random_addrandom)(unsigned
 }
 
 #elif defined(VGO_dragonfly)
-#   warning "Do something!"
 #elif defined(VGO_solaris)
 
 /* Declare the errno and environ symbols weakly in case the client is not
