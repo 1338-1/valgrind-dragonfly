@@ -958,7 +958,14 @@ static ULong di_notify_ACHIEVE_ACCEPT_STATE ( struct _DebugInfo* di )
       get rid of any other DebugInfos which overlap any of those
       ranges (to avoid total confusion).  But only those valid in
      the current epoch.  We don't want to discard archived DebugInfos. */
-   discard_DebugInfos_which_overlap_with( di );
+
+   /* No we are not, despite ldso unmapping elf headers when leaving map_object
+      fsm.maps for vg_*so point at libc.so elf header thus
+      causing them to be dropped in do_DebugInfos_overlap check,
+      And most importantly, it works
+
+      discard_DebugInfos_which_overlap_with( di );
+	  */
 
    /* The DebugInfoMappings that now exist in the FSM may involve
       overlaps.  This confuses ML_(read_elf_debug_info), and may cause
