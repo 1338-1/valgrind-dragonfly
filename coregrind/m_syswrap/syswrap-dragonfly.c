@@ -369,6 +369,75 @@ SysRes ML_(do_fork) ( ThreadId tid )
 // Combine two 32-bit values into a 64-bit value
 #define LOHI64(lo,hi)   ( (lo) | ((ULong)(hi) << 32) )
 
+PRE(sys_set_tls_area)
+{
+	ThreadState *tst;
+	void *sreg;
+
+	PRINT("sys_set_tls_area (%d, %p, %lu)", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "set_tls_area",
+		int, which, void*, info, unsigned long, size);
+
+	if (ARG2 == 0)
+	{
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	tst = VG_(get_ThreadState)(tid);
+	sreg = *(void**)ARG2;
+
+	switch (ARG1)
+	{
+	case 0:
+		tst->arch.vex.guest_FS_CONST = (UWord)sreg;
+		break;
+	case 1:
+		tst->arch.vex.guest_GS_CONST = (UWord)sreg;
+		break;
+	default:
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	SET_STATUS_Success(0);
+}
+
+PRE(sys_realpath)
+{
+	PRINT("realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "realpath",
+		const char*, pathname, char*, path, unsigned long, len);
+}
+
+PRE(sys_lwp_create)
+{
+	PRINT("lwp_create (%p)", (void*)ARG1);
+	PRE_REG_READ1(int, "lwp_create",
+		void*, params);
+}
+
+PRE(sys_lwp_kill)
+{
+	PRINT("lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
+	PRE_REG_READ3(int, "lwp_kill",
+		vki_pid_t, pid, int, tid, int, sig);
+}
+
+PRE(sys_umtx_sleep)
+{
+	PRINT("umtx_sleep (%p, %d, %d)", (void*)ARG1, ARG2, ARG3);
+	PRE_REG_READ3(int, "umtx_sleep",
+		volatile const int*, ptr, int, value, int, timeout);
+}
+
+PRE(sys_umtx_wakeup)
+{
+	PRINT("umtx_wakeup (%p, %d)", (void*)ARG1, ARG2);
+	PRE_REG_READ2(int, "umtx_wakeup",
+		volatile const int*, ptr, int, count);
+}
+
 PRE(sys_fork)
 {
    PRINT("sys_fork ()");
@@ -3994,7 +4063,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // BSDXY(__NR_shmsys,			sys_shmsys),			// 171
 
    // nosys								   172
-   //BSDXY(__NR_pread6,			sys_pread),			// 173
+   BSDXY(__NR_extpread,			sys_pread),				// 173
+   //BSDXY(__NR_pread6,			sys_pread),			
    //BSDX_(__NR_pwrite6,			sys_pwrite),			// 174
    // nosys								   175
 
@@ -4363,9 +4433,11 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // nosys								   467
 
    // nosys								   468
-   // __getpath_fromfd							   469
-   // __getpath_fromaddr						   470
+   BSDX_(__NR_umtx_sleep,		sys_umtx_sleep), 			// 469
+   BSDX_(__NR_umtx_wakeup,		sys_umtx_wakeup),			// 470
    // sctp_peeloff							   471
+
+	BSDX_(__NR_set_tls_area,	sys_set_tls_area), // 472
 
    // sctp_generic_sendmsg						   472
    // sctp_generic_sendmsg_iov						   473
@@ -4373,7 +4445,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    //BSDXY(__NR_pread,			sys_pread7),			// 475
 
    //BSDX_(__NR_pwrite,			sys_pwrite7),			// 476
-   BSDX_(__NR_mmap,			sys_mmap7),			// 477
+   BSDX_(__NR_mmap,			sys_mmap),			// 477
    BSDX_(__NR_lseek,			sys_lseek7),			// 478
    //BSDX_(__NR_truncate7,		sys_truncate7),			// 479
 
@@ -4397,8 +4469,9 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    //BSDX_(__NR_futimesat,		sys_futimesat),			// 494
    BSDX_(__NR_linkat,			sys_linkat),			// 495
 
+   BSDX_(__NR_mkfifoat,			sys_mkfifoat),			
    BSDX_(__NR_mkdirat,			sys_mkdirat),			// 496
-   BSDX_(__NR_mkfifoat,			sys_mkfifoat),			// 497
+   BSDX_(__NR_lwp_kill,			sys_lwp_kill),			// 497
    BSDX_(__NR_mknodat,			sys_mknodat),			// 498
    BSDXY(__NR_openat,			sys_openat),			// 499
 
@@ -4412,7 +4485,9 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR___semctl,			sys___semctl),			// 510
    BSDXY(__NR_shmctl,			sys_shmctl),			// 512
    BSDXY(__NR_pselect,          sys_pselect),			// 522
+   BSDX_(__NR_lwp_create2,		sys_lwp_create),		// 546
    BSDXY(__NR_pipe2,			sys_pipe2),			// 542
+   BSDX_(__NR___realpath,		sys_realpath),		// 551
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
 

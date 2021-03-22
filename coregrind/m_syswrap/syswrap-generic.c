@@ -2287,7 +2287,7 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
       return VG_(mk_SysRes_Error)( VKI_EINVAL );
    }
 
-   if (!VG_IS_PAGE_ALIGNED(arg1)) {
+   if (arg4 & VKI_MAP_FIXED && !VG_IS_PAGE_ALIGNED(arg1)) {
       /* zap any misaligned addresses. */
       /* SuSV3 says misaligned addresses only cause the MAP_FIXED case
          to fail.   Here, we catch them all. */

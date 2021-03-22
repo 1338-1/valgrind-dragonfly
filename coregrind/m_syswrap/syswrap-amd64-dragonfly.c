@@ -519,12 +519,11 @@ PRE(sys_mmap)
    SET_STATUS_from_SysRes(r);
 }
 
-/* Dragonfly-7 introduces a "regular" version of mmap etc. */
 PRE(sys_mmap7)
 {
    SysRes r;
 
-   PRINT("sys_mmap ( %#lx, %lu, %ld, %ld, %ld, 0x%lx)",
+   PRINT("sys_mmap7 ( %#lx, %lu, %ld, %ld, %ld, 0x%lx)",
          ARG1, (UWord)ARG2, ARG3, ARG4, ARG5, ARG6 );
    PRE_REG_READ6(long, "mmap",
                  char *, addr, unsigned long, len, int, prot,  int, flags,
