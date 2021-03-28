@@ -20,4 +20,10 @@
 	Memcheck:Value8
 	obj:/lib/libc.so.*
 }
+{
+	libc param write
+	Memcheck:Param
+	write(buf)
+	obj:/lib/libc.so.*
+}
 
