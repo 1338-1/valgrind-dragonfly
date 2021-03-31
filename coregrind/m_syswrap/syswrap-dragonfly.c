@@ -535,6 +535,64 @@ PRE(sys_lwp_setname)
    lwp* wrappers END
    ------------------------------------------------------------------ */
 
+/* ---------------------------------------------------------------------
+   varsym* wrappers
+   ------------------------------------------------------------------ */
+
+
+PRE(sys_varsym_get)
+{
+	PRINT("sys_varsym_get ( %d, %p, %p, %d )", ARG1, (void*)ARG2, (void*)ARG3,
+		ARG4);
+	PRE_REG_READ4(int, "varsym_get",
+		int, mask, const char*, wild, char*, buf, int, bufsize);
+}
+
+POST(sys_varsym_get)
+{
+	if (RES != -1) // bug in kern_varsym.c, can revert to 0 when fixed
+		POST_MEM_WRITE(ARG3, ARG4);
+}
+
+PRE(sys_varsym_set)
+{
+	PRINT("sys_varsym_set ( %d, %p, %p )", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "varsym_set",
+		int, level, const char*, name, const char*, data);
+}
+
+PRE(sys_varsym_list)
+{
+	PRINT("sys_varsym_list ( %d, %p, %p, %d )", ARG1, (void*)ARG2, (void*)ARG3,
+		ARG4);
+	PRE_REG_READ4(int, "varsym_list",
+		int, level, char*, buf, int, maxsize, int*, marker);
+}
+
+POST(sys_varsym_list)
+{
+	char *p = ARG2;
+	int *marker = ARG4;
+	int nbytes = 0;
+
+	if (p && marker)
+	{
+		while (marker--)
+		{
+			while (*p)
+				++p, ++nbytes;
+			++p;
+			++nbytes;
+		}
+
+		POST_MEM_WRITE(ARG2, nbytes);
+	}
+}
+
+/* ---------------------------------------------------------------------
+   varsym* wrappers END
+   ------------------------------------------------------------------ */
+
 PRE(sys_realpath)
 {
 	PRINT("sys_realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
@@ -1216,6 +1274,14 @@ PRE(sys_futimes)
    PRE_REG_READ2(long, "futimes", int, fd, struct timeval *, tvp);
    if (ARG2 != 0)
       PRE_MEM_READ( "futimes(tvp)", ARG2, sizeof(struct vki_timeval) );
+}
+
+PRE(sys_futimens)
+{
+   PRINT("sys_futimes ( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "futimes", int, fd, const struct timespec*, times);
+   if (ARG2 != 0)
+      PRE_MEM_READ( "futimens(times)", ARG2, sizeof(struct vki_timespec) * 2);
 }
 
 PRE(sys_utrace)
@@ -4615,6 +4681,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_pselect,          sys_pselect),			// 522
    BSDXY(__NR_pipe2,			sys_pipe2),			// 542
    BSDX_(__NR___realpath,		sys_realpath),		// 551
+   BSDX_(__NR_futimens,			sys_futimens),		// 540
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
 
@@ -4628,6 +4695,10 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_lwp_setaffinity,	sys_lwp_setaffinity),
    BSDXY(__NR_lwp_getaffinity,	sys_lwp_getaffinity),
    BSDX_(__NR_lwp_create2,		sys_lwp_create2),
+
+   BSDXY(__NR_varsym_get,		sys_varsym_get),
+   BSDX_(__NR_varsym_set,		sys_varsym_set),
+   BSDXY(__NR_varsym_list,		sys_varsym_list),
 };
 
 const UInt ML_(syscall_table_size) =
