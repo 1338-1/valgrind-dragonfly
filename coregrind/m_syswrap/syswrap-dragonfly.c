@@ -3494,6 +3494,13 @@ PRE(sys_fcntl)
                     struct flock *, lock);
       break;
 
+   case VKI_F_GETPATH:
+      PRINT("sys_fcntl[ARG3=='path'] ( %ld, %ld, %p )", ARG1, ARG2,
+         (void*)ARG3);
+      PRE_REG_READ3(long, "fcntl", unsigned int, fd, unsigned int, cmd,
+         char*, path);
+      break;
+
    default:
       PRINT("sys_fcntl[UNKNOWN] ( %ld, %ld, %ld )", ARG1,ARG2,ARG3);
       I_die_here;
@@ -3512,6 +3519,9 @@ POST(sys_fcntl)
          if (VG_(clo_track_fds))
             ML_(record_fd_open_named)(tid, RES);
       }
+   }
+   else if (ARG2 == VKI_F_GETPATH && RES == 0) {
+      POST_MEM_WRITE(ARG3, VG_(strlen)(ARG3) + 1);
    }
 }
 
