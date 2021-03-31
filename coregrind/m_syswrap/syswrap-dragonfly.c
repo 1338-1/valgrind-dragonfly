@@ -445,38 +445,113 @@ POST(sys_get_tls_area)
 		POST_MEM_WRITE(ARG2, sizeof(struct vki_tls_info));
 }
 
+/* ---------------------------------------------------------------------
+   lwp* wrappers
+   ------------------------------------------------------------------ */
+
+// Might need the equivalent of thr_new
 PRE(sys_lwp_create)
 {
-	PRINT("lwp_create (%p)", (void*)ARG1);
+	PRINT("sys_lwp_create ( %p )", (void*)ARG1);
 	PRE_REG_READ1(int, "lwp_create",
-		void*, params);
+		struct vki_lwp_params*, params);
+}
+
+PRE(sys_lwp_create2)
+{
+	PRINT("sys_lwp_create2 ( %p, %p )", (void*)ARG1, (void*)ARG2);
+	PRE_REG_READ2(int, "lwp_create2",
+		struct vki_lwp_params*, params, const vki_cpumask_t*, mask);
+}
+
+PRE(sys_lwp_gettid)
+{
+	PRINT("sys_lwp_gettid ()");
+	PRE_REG_READ0(vki_lwpid_t, "lwp_gettid");
 }
 
 PRE(sys_lwp_kill)
 {
-	PRINT("lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
+	PRINT("sys_lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
 	PRE_REG_READ3(int, "lwp_kill",
-		vki_pid_t, pid, int, tid, int, sig);
+		vki_pid_t, pid, vki_lwpid_t, tid, int, sig);
 }
 
+PRE(sys_lwp_rtprio)
+{
+	PRINT("sys_lwp_rtprio (%d, %d, %d, %p)", ARG1, ARG2, ARG3, (void*)ARG4);
+	PRE_REG_READ4(int, "lwp_rtprio",
+		int, function, vki_pid_t, pid, vki_lwpid_t, tid,
+		struct vki_rtprio*, rtp);
+}
+
+POST(sys_lwp_rtprio)
+{
+	if (ARG1 == VKI_RTP_LOOKUP && RES == 0)
+		POST_MEM_WRITE(ARG4, sizeof(struct vki_rtprio));
+}
+
+PRE(sys_lwp_setaffinity)
+{
+	PRINT("sys_lwp_setaffinity ( %d, %d %p )", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(int, "lwp_setaffinity",
+		vki_pid_t, pid, vki_lwpid_t, tid, const vki_cpumask_t*, mask);
+}
+
+PRE(sys_lwp_getaffinity)
+{
+	PRINT("sys_lwp_getaffinity ( %d, %d %p )", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(int, "lwp_getaffinity",
+		vki_pid_t, pid, vki_lwpid_t, tid, vki_cpumask_t*, mask);
+}
+
+POST(sys_lwp_getaffinity)
+{
+	if (RES == 0)
+		POST_MEM_WRITE(ARG3, sizeof(vki_cpumask_t));
+}
+
+PRE(sys_lwp_getname)
+{
+	PRINT("sys_lwp_getname ( %d, %p, %zu )", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "lwp_getname",
+		vki_lwpid_t, tid, char*, name, vki_size_t, len);
+}
+
+POST(sys_lwp_getname)
+{
+	if (RES == 0)
+		POST_MEM_WRITE(ARG2, ARG3);
+}
+
+PRE(sys_lwp_setname)
+{
+	PRINT("sys_lwp_setname ( %d, %p )", ARG1, (void*)ARG2);
+	PRE_REG_READ2(int, "lwp_setname",
+		vki_lwpid_t, tid, const char*, name);
+}
+
+/* ---------------------------------------------------------------------
+   lwp* wrappers END
+   ------------------------------------------------------------------ */
 
 PRE(sys_realpath)
 {
-	PRINT("realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
+	PRINT("sys_realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
 	PRE_REG_READ3(int, "realpath",
 		const char*, pathname, char*, path, unsigned long, len);
 }
 
 PRE(sys_umtx_sleep)
 {
-	PRINT("umtx_sleep (%p, %d, %d)", (void*)ARG1, ARG2, ARG3);
+	PRINT("sys_umtx_sleep (%p, %d, %d)", (void*)ARG1, ARG2, ARG3);
 	PRE_REG_READ3(int, "umtx_sleep",
 		volatile const int*, ptr, int, value, int, timeout);
 }
 
 PRE(sys_umtx_wakeup)
 {
-	PRINT("umtx_wakeup (%p, %d)", (void*)ARG1, ARG2);
+	PRINT("sys_umtx_wakeup (%p, %d)", (void*)ARG1, ARG2);
 	PRE_REG_READ2(int, "umtx_wakeup",
 		volatile const int*, ptr, int, count);
 }
@@ -4524,8 +4599,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_linkat,			sys_linkat),			// 495
 
    BSDX_(__NR_mkfifoat,			sys_mkfifoat),			
-   BSDX_(__NR_mkdirat,			sys_mkdirat),			// 496
-   BSDX_(__NR_lwp_kill,			sys_lwp_kill),			// 497
+   BSDX_(__NR_mkdirat,			sys_mkdirat),			
    BSDX_(__NR_mknodat,			sys_mknodat),			// 498
    BSDXY(__NR_openat,			sys_openat),			// 499
 
@@ -4539,12 +4613,21 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR___semctl,			sys___semctl),			// 510
    BSDXY(__NR_shmctl,			sys_shmctl),			// 512
    BSDXY(__NR_pselect,          sys_pselect),			// 522
-   BSDX_(__NR_lwp_create2,		sys_lwp_create),		// 546
    BSDXY(__NR_pipe2,			sys_pipe2),			// 542
    BSDX_(__NR___realpath,		sys_realpath),		// 551
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
 
+   // lwp_*
+   BSDX_(__NR_lwp_create, 		sys_lwp_create),
+   BSDX_(__NR_lwp_gettid,		sys_lwp_gettid),
+   BSDX_(__NR_lwp_kill,			sys_lwp_kill),
+   BSDXY(__NR_lwp_rtprio,		sys_lwp_rtprio),
+   BSDX_(__NR_lwp_setname,		sys_lwp_setname),
+   BSDXY(__NR_lwp_getname,		sys_lwp_getname),
+   BSDX_(__NR_lwp_setaffinity,	sys_lwp_setaffinity),
+   BSDXY(__NR_lwp_getaffinity,	sys_lwp_getaffinity),
+   BSDX_(__NR_lwp_create2,		sys_lwp_create2),
 };
 
 const UInt ML_(syscall_table_size) =
