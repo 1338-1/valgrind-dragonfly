@@ -7,23 +7,39 @@
 {
    rtld-2
    Memcheck:Cond
-   obj:/libexec/ld-elf*.so.*
+   obj:/libexec/ld-elf*.so*
 }
 {
 	libc cond
 	Memcheck:Cond
-	obj:/lib/libc.so.*
+	obj:/lib/libc.so*
 	fun:readdir
 }
 {
 	libc value
 	Memcheck:Value8
-	obj:/lib/libc.so.*
+	obj:/lib/libc.so*
 }
 {
+
 	libc param write
 	Memcheck:Param
 	write(buf)
-	obj:/lib/libc.so.*
+	obj:/lib/libc.so*
+}
+{
+	libc param ioctl
+	Memcheck:Param
+	ioctl(generic)
+	obj:/lib/libc.so*
+}
+{
+	# Technically it's a bug at uname.c:120 as it only sets error flags after
+	# sysctl failure and continues to execute code that accesses name->version
+	# which can be uninitialized
+	libc condjump uname
+	Memcheck:Cond
+	obj:/lib/libc.so*
+	#fun:uname
 }
 
