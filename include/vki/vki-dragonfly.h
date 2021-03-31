@@ -77,6 +77,17 @@
 
 #define VKI_MAXPATHLEN MAXPATHLEN
 
+//----------------------------------------------------------------------
+// From sys/tls.h
+//----------------------------------------------------------------------
+
+struct vki_tls_info {
+	void *base;
+	long size;	/* must be signed */
+};
+
+#define VKI_TLS_WHICH_FS	0
+#define VKI_TLS_WHICH_GS	1
 
 //----------------------------------------------------------------------
 // From sys/select.h

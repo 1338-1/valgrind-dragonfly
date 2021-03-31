@@ -372,11 +372,11 @@ SysRes ML_(do_fork) ( ThreadId tid )
 PRE(sys_set_tls_area)
 {
 	ThreadState *tst;
-	void *sreg;
+	struct vki_tls_info* info;
 
 	PRINT("sys_set_tls_area (%d, %p, %lu)", ARG1, (void*)ARG2, ARG3);
 	PRE_REG_READ3(int, "set_tls_area",
-		int, which, void*, info, unsigned long, size);
+		int, which, struct vki_tls_info*, info, vki_size_t, size);
 
 	if (ARG2 == 0)
 	{
@@ -385,15 +385,15 @@ PRE(sys_set_tls_area)
 	}
 
 	tst = VG_(get_ThreadState)(tid);
-	sreg = *(void**)ARG2;
+	info = ARG2;
 
 	switch (ARG1)
 	{
 	case 0:
-		tst->arch.vex.guest_FS_CONST = (UWord)sreg;
+		tst->arch.vex.guest_FS_CONST = info->base;
 		break;
 	case 1:
-		tst->arch.vex.guest_GS_CONST = (UWord)sreg;
+		tst->arch.vex.guest_GS_CONST = info->base;
 		break;
 	default:
 		SET_STATUS_Failure(VKI_EINVAL);
@@ -403,11 +403,46 @@ PRE(sys_set_tls_area)
 	SET_STATUS_Success(0);
 }
 
-PRE(sys_realpath)
+PRE(sys_get_tls_area)
 {
-	PRINT("realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
-	PRE_REG_READ3(int, "realpath",
-		const char*, pathname, char*, path, unsigned long, len);
+	ThreadState *tst;
+	struct vki_tls_info* info;
+
+	PRINT("sys_get_tls_area (%d, %p, %lu)", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "get_tls_area",
+		int, which, struct vki_tls_info*, info, vki_size_t, size);
+
+	if (ARG2 == 0)
+	{
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	tst = VG_(get_ThreadState)(tid);
+	info = ARG2;
+
+	switch (ARG1)
+	{
+	case 0:
+		info->base = tst->arch.vex.guest_FS_CONST;
+		info->size = -1;
+		break;
+	case 1:
+		info->base = tst->arch.vex.guest_GS_CONST;
+		info->size = -1;
+		break;
+	default:
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	SET_STATUS_Success(0);
+}
+
+POST(sys_get_tls_area)
+{
+	if (ARG2 && RES == 0)
+		POST_MEM_WRITE(ARG2, sizeof(struct vki_tls_info));
 }
 
 PRE(sys_lwp_create)
@@ -422,6 +457,14 @@ PRE(sys_lwp_kill)
 	PRINT("lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
 	PRE_REG_READ3(int, "lwp_kill",
 		vki_pid_t, pid, int, tid, int, sig);
+}
+
+
+PRE(sys_realpath)
+{
+	PRINT("realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "realpath",
+		const char*, pathname, char*, path, unsigned long, len);
 }
 
 PRE(sys_umtx_sleep)
@@ -4438,6 +4481,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // sctp_peeloff							   471
 
 	BSDX_(__NR_set_tls_area,	sys_set_tls_area), // 472
+	BSDXY(__NR_get_tls_area,	sys_get_tls_area), // 473
 
    // sctp_generic_sendmsg						   472
    // sctp_generic_sendmsg_iov						   473
