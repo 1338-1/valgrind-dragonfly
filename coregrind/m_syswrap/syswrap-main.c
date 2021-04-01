@@ -2034,7 +2034,8 @@ void VG_(client_syscall) ( ThreadId tid, UInt trc )
       platform-dependent action. */
 
    sci = & syscallInfo[tid];
-   vg_assert(sci->status.what == SsIdle);
+   if (sci->status.what != SsIdle)
+      VG_(memset)(sci, 0, sizeof *sci);
 
    getSyscallArgsFromGuestState( &sci->orig_args, &tst->arch.vex, trc );
 
