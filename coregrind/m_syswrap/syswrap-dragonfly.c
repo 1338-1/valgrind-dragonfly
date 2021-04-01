@@ -798,6 +798,7 @@ POST(sys_varsym_list)
 PRE(sys_extexit)
 {
 	ThreadId t;
+	ThreadState *tst;
 
 	PRINT("sys_extexit (%d, %d, %p)", ARG1, ARG2, (void*)ARG3);
 	PRE_REG_READ3(void, "extexit",
@@ -808,11 +809,9 @@ PRE(sys_extexit)
 
 	if (ARG1 | VKI_EXTEXIT_LWP)
 	{
-		if (!ML_(do_sigkill)(ARG1, -1))
-		{
-			SET_STATUS_Failure(VKI_EINVAL);
-			return;
-		}
+		tst = VG_(get_ThreadState)(tid);
+		tst->exitreason = VgSrc_ExitThread;
+		tst->os_state.exitcode = ARG1;
 	}
 	else if (ARG1 | VKI_EXTEXIT_PROC)
 	{
