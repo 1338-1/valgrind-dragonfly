@@ -508,16 +508,6 @@ PRE(sys_lwp_create)
 		label below, to clean up. */
 	VG_TRACK ( pre_thread_ll_create, tid, ctid );
 
-	/* dbsd did a funny,
-		we might need to allocate memory for the tls 
-
-	if (debug)
-		VG_(printf)("clone child has SETTLS: tls at %#lx\n", (Addr)tp.tls_base);
-
-	ctst->arch.vex.guest_FS_CONST = (UWord)tp.tls_base;
-	tp.tls_base = 0;
-	*/
-
 	/* start the thread with everything blocked */
 	VG_(sigprocmask)(VKI_SIG_SETMASK, &blockall, &savedmask);
 
@@ -537,7 +527,7 @@ PRE(sys_lwp_create)
 		res = VG_(mk_SysRes_Error)( VKI_ENOMEM );
 		goto fail;
 	}
-	tp.stack = (void *)ctst->os_state.valgrind_stack_base;
+	tp.stack = stk;
 
 	/* Create the new thread */
 	res = VG_(do_syscall1)(__NR_lwp_create, (UWord)&tp);
@@ -624,16 +614,6 @@ PRE(sys_lwp_create2)
 		label below, to clean up. */
 	VG_TRACK ( pre_thread_ll_create, tid, ctid );
 
-	/* dbsd did a funny,
-		we might need to allocate memory for the tls 
-
-	if (debug)
-		VG_(printf)("clone child has SETTLS: tls at %#lx\n", (Addr)tp.tls_base);
-
-	ctst->arch.vex.guest_FS_CONST = (UWord)tp.tls_base;
-	tp.tls_base = 0;
-	*/
-
 	/* start the thread with everything blocked */
 	VG_(sigprocmask)(VKI_SIG_SETMASK, &blockall, &savedmask);
 
@@ -653,7 +633,7 @@ PRE(sys_lwp_create2)
 		res = VG_(mk_SysRes_Error)( VKI_ENOMEM );
 		goto fail;
 	}
-	tp.stack = (void *)ctst->os_state.valgrind_stack_base;
+	tp.stack = stk;
 
 	/* Create the new thread */
 	res = VG_(do_syscall2)(__NR_lwp_create, (UWord)&tp, ARG2);
