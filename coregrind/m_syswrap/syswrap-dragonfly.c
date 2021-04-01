@@ -795,6 +795,43 @@ POST(sys_varsym_list)
    varsym* wrappers END
    ------------------------------------------------------------------ */
 
+PRE(sys_extexit)
+{
+	ThreadId t;
+
+	PRINT("sys_extexit (%d, %d, %p)", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(void, "extexit",
+		int, how, int, status, void*, addr);
+
+	if (ARG1 | VKI_EXTEXIT_SETINT && ARG3)
+		PRE_MEM_READ("extexit(addr)", ARG3, sizeof(int));
+
+	if (ARG1 | VKI_EXTEXIT_LWP)
+	{
+		if (!ML_(do_sigkill)(ARG1, -1))
+		{
+			SET_STATUS_Failure(VKI_EINVAL);
+			return;
+		}
+	}
+	else if (ARG1 | VKI_EXTEXIT_PROC)
+	{
+		for (t = 1; t < VG_N_THREADS; ++t)
+		{
+			if (VG_(threads)[t].status == VgTs_Empty)
+				continue;
+
+			VG_(threads)[t].exitreason = VgSrc_ExitThread;
+			VG_(threads)[t].os_state.exitcode = ARG2;
+
+			if (t != tid)
+				VG_(get_thread_out_of_syscall)(t);
+		}
+	}
+
+	SET_STATUS_Success(0);
+}
+
 PRE(sys_realpath)
 {
 	PRINT("sys_realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
@@ -4864,7 +4901,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // fexecve								   492
    BSDXY(__NR_fstatat,			sys_fstatat),			// 493
-   //BSDX_(__NR_futimesat,		sys_futimesat),			// 494
+   BSDX_(__NR_extexit,			sys_extexit),			// 494
    BSDX_(__NR_linkat,			sys_linkat),			// 495
 
    BSDX_(__NR_mkfifoat,			sys_mkfifoat),			

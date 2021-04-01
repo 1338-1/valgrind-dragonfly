@@ -1597,6 +1597,13 @@ struct vki_dirent {
 // From sys/unistd.h
 //----------------------------------------------------------------------
 
+#define	VKI_EXTEXIT_SIMPLE		0
+#define	VKI_EXTEXIT_SETINT		1
+#define	VKI_EXTEXIT_ACTION(f)	((f) & 0xffff)
+#define	VKI_EXTEXIT_PROC		(0<<16)
+#define	VKI_EXTEXIT_LWP			(1<<16)
+#define	VKI_EXTEXIT_WHO(f)		((f) & (0xffff<<16))
+
 #define VKI_SEEK_SET              0
 #define VKI_SEEK_CUR              1
 #define VKI_SEEK_END              2
