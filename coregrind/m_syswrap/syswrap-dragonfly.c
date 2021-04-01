@@ -1167,6 +1167,16 @@ POST(sys_getresgid)
    miscellaneous wrappers
    ------------------------------------------------------------------ */
 
+PRE(sys_closefrom)
+{
+	PRINT("sys_closefrom ( %d )", ARG1);
+	PRE_REG_READ1(int, "closefrom", int, fd);
+	/* Because we have to accept the case where valgrind logging
+	   descriptors are above fd, we might as well silently drop all calls
+	*/
+	SET_STATUS_Success(0);
+}
+
 #if 0
 PRE(sys_exit_group)
 {
@@ -4876,6 +4886,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // sctp_generic_sendmsg						   472
    // sctp_generic_sendmsg_iov						   473
    // sctp_generic_recvmsg						   474
+   BSDX_(__NR_closefrom,		sys_closefrom),		// 474
    //BSDXY(__NR_pread,			sys_pread7),			// 475
 
    //BSDX_(__NR_pwrite,			sys_pwrite7),			// 476
