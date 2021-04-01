@@ -90,11 +90,11 @@ typedef struct {
 //----------------------------------------------------------------------
 
 struct vki_lwp_params {
-	void (*lwp_func)(void*);
-	void *lwp_arg;
-	void *lwp_stack;
-	lwpid_t *lwp_tid1;
-	lwpid_t *lwp_tid2;
+	void (*func)(void*);
+	void *arg;
+	void *stack;
+	lwpid_t *tid1;
+	lwpid_t *tid2;
 };
 
 //----------------------------------------------------------------------
