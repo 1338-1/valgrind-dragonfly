@@ -449,19 +449,216 @@ POST(sys_get_tls_area)
    lwp* wrappers
    ------------------------------------------------------------------ */
 
-// Might need the equivalent of thr_new
 PRE(sys_lwp_create)
 {
+	static const Bool debug = False;
+
+	ThreadId     ctid = VG_(alloc_ThreadState)();
+	ThreadState* ptst = VG_(get_ThreadState)(tid);
+	ThreadState* ctst = VG_(get_ThreadState)(ctid);
+	SysRes       res;
+	vki_sigset_t blockall, savedmask;
+	struct vki_lwp_params tp;
+	vki_size_t stksize = 0x1000000; // 16Mb, it better be enough
+	Addr stk;
+
 	PRINT("sys_lwp_create ( %p )", (void*)ARG1);
 	PRE_REG_READ1(int, "lwp_create",
 		struct vki_lwp_params*, params);
+	
+	if (ARG1 == 0) {
+		SET_STATUS_Failure(VKI_EFAULT);
+		return;
+	}
+
+	VG_(memcpy)(&tp, (void*)ARG1, sizeof(struct vki_lwp_params));
+	if (tp.tid1)
+		PRE_MEM_WRITE("lwp_create(params.tid1)", (Addr)tp.tid1, sizeof tp.tid1);
+	if (tp.tid2)
+		PRE_MEM_WRITE("lwp_create(params.tid2)", (Addr)tp.tid2, sizeof tp.tid2);
+
+	VG_(sigfillset)(&blockall);
+	vg_assert(VG_(is_running_thread)(tid));
+	vg_assert(VG_(is_valid_tid)(ctid));
+
+	/* Copy register state. We inherit our parent's guest state. */
+	ctst->arch.vex = ptst->arch.vex;
+	ctst->arch.vex_shadow1 = ptst->arch.vex_shadow1;
+	ctst->arch.vex_shadow2 = ptst->arch.vex_shadow2;
+
+	/* Make thr_new appear to have returned Success(0) in the child. */
+	ctst->arch.vex.guest_RAX = 0;
+	ctst->arch.vex.guest_RDX = 0;
+	LibVEX_GuestAMD64_put_rflag_c(0, &ctst->arch.vex);
+
+	ctst->os_state.parent = tid;
+
+	/* inherit signal mask */
+	ctst->sig_mask = ptst->sig_mask;
+	ctst->tmp_sig_mask = ptst->sig_mask;
+
+	/* Yee, we have to guess */
+	ctst->client_stack_highest_byte = (Addr)tp.stack;
+	ctst->client_stack_szB = stksize;
+	VG_(register_stack)((Addr)tp.stack - stksize, (Addr)tp.stack);
+
+	/* Assume the thr_new will succeed, and tell any tool that wants to
+		know that this thread has come into existence.  If the thr_new
+		fails, we'll send out a ll_exit notification for it at the out:
+		label below, to clean up. */
+	VG_TRACK ( pre_thread_ll_create, tid, ctid );
+
+	/* start the thread with everything blocked */
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &blockall, &savedmask);
+
+	/* Set the client state for scheduler to run libthr's trampoline */
+	ctst->arch.vex.guest_RDI = (Addr)tp.arg;
+	/* XXX: align on 16-byte boundary? */
+	ctst->arch.vex.guest_RSP = (((Addr)tp.stack) & ~(0xffULL)) - 0x8;
+	ctst->arch.vex.guest_RIP = (Addr)tp.func;
+
+	/* But this is for thr_new() to run valgrind's trampoline */
+	tp.func = (void *)ML_(start_thread_NORETURN);
+	tp.arg = &VG_(threads)[ctid];
+
+	/* And valgrind's trampoline on its own stack */
+	stk = ML_(allocstack)(ctid);
+	if (stk == (Addr)NULL) {
+		res = VG_(mk_SysRes_Error)( VKI_ENOMEM );
+		goto fail;
+	}
+	tp.stack = stk;
+
+	/* Create the new thread */
+	res = VG_(do_syscall1)(__NR_lwp_create, (UWord)&tp);
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &savedmask, NULL);
+
+fail:
+	if (sr_isError(res)) {
+		/* lwp_create failed */
+		VG_(cleanup_thread)(&ctst->arch);
+		ctst->status = VgTs_Empty;
+		/* oops.  Better tell the tool the thread exited in a hurry :-) */
+		VG_TRACK( pre_thread_ll_exit, ctid );
+	} else {
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid1, sizeof tp.tid1);
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid2, sizeof tp.tid2);
+
+		/* Thread creation was successful; let the child have the chance
+			to run */
+		*flags |= SfYieldAfter;
+	}
+
+	/* "Complete" the syscall so that the wrapper doesn't call the kernel again. */
+	SET_STATUS_from_SysRes(res);
 }
 
 PRE(sys_lwp_create2)
 {
+	static const Bool debug = False;
+
+	ThreadId     ctid = VG_(alloc_ThreadState)();
+	ThreadState* ptst = VG_(get_ThreadState)(tid);
+	ThreadState* ctst = VG_(get_ThreadState)(ctid);
+	SysRes       res;
+	vki_sigset_t blockall, savedmask;
+	struct vki_lwp_params tp;
+	vki_size_t stksize = 0x1000000; // 16Mb, it better be enough
+	Addr stk;
+
 	PRINT("sys_lwp_create2 ( %p, %p )", (void*)ARG1, (void*)ARG2);
 	PRE_REG_READ2(int, "lwp_create2",
 		struct vki_lwp_params*, params, const vki_cpumask_t*, mask);
+	
+	if (ARG1 == 0) {
+		SET_STATUS_Failure(VKI_EFAULT);
+		return;
+	}
+
+	VG_(memcpy)(&tp, (void*)ARG1, sizeof(struct vki_lwp_params));
+	if (tp.tid1)
+		PRE_MEM_WRITE("lwp_create2(params.tid1)", (Addr)tp.tid1, sizeof tp.tid1);
+	if (tp.tid2)
+		PRE_MEM_WRITE("lwp_create2(params.tid2)", (Addr)tp.tid2, sizeof tp.tid2);
+
+	VG_(sigfillset)(&blockall);
+	vg_assert(VG_(is_running_thread)(tid));
+	vg_assert(VG_(is_valid_tid)(ctid));
+
+	/* Copy register state. We inherit our parent's guest state. */
+	ctst->arch.vex = ptst->arch.vex;
+	ctst->arch.vex_shadow1 = ptst->arch.vex_shadow1;
+	ctst->arch.vex_shadow2 = ptst->arch.vex_shadow2;
+
+	/* Make thr_new appear to have returned Success(0) in the child. */
+	ctst->arch.vex.guest_RAX = 0;
+	ctst->arch.vex.guest_RDX = 0;
+	LibVEX_GuestAMD64_put_rflag_c(0, &ctst->arch.vex);
+
+	ctst->os_state.parent = tid;
+
+	/* inherit signal mask */
+	ctst->sig_mask = ptst->sig_mask;
+	ctst->tmp_sig_mask = ptst->sig_mask;
+
+	/* Yee, we have to guess */
+	ctst->client_stack_highest_byte = (Addr)tp.stack;
+	ctst->client_stack_szB = stksize;
+	VG_(register_stack)((Addr)tp.stack - stksize, (Addr)tp.stack);
+
+	/* Assume the thr_new will succeed, and tell any tool that wants to
+		know that this thread has come into existence.  If the thr_new
+		fails, we'll send out a ll_exit notification for it at the out:
+		label below, to clean up. */
+	VG_TRACK ( pre_thread_ll_create, tid, ctid );
+
+	/* start the thread with everything blocked */
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &blockall, &savedmask);
+
+	/* Set the client state for scheduler to run libthr's trampoline */
+	ctst->arch.vex.guest_RDI = (Addr)tp.arg;
+	/* XXX: align on 16-byte boundary? */
+	ctst->arch.vex.guest_RSP = (((Addr)tp.stack) & ~(0xffULL)) - 0x8;
+	ctst->arch.vex.guest_RIP = (Addr)tp.func;
+
+	/* But this is for thr_new() to run valgrind's trampoline */
+	tp.func = (void *)ML_(start_thread_NORETURN);
+	tp.arg = &VG_(threads)[ctid];
+
+	/* And valgrind's trampoline on its own stack */
+	stk = ML_(allocstack)(ctid);
+	if (stk == (Addr)NULL) {
+		res = VG_(mk_SysRes_Error)( VKI_ENOMEM );
+		goto fail;
+	}
+	tp.stack = stk;
+
+	/* Create the new thread */
+	res = VG_(do_syscall2)(__NR_lwp_create, (UWord)&tp, ARG2);
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &savedmask, NULL);
+
+fail:
+	if (sr_isError(res)) {
+		/* lwp_create failed */
+		VG_(cleanup_thread)(&ctst->arch);
+		ctst->status = VgTs_Empty;
+		/* oops.  Better tell the tool the thread exited in a hurry :-) */
+		VG_TRACK( pre_thread_ll_exit, ctid );
+	} else {
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid1, sizeof tp.tid1);
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid2, sizeof tp.tid2);
+
+		/* Thread creation was successful; let the child have the chance
+			to run */
+		*flags |= SfYieldAfter;
+	}
+
+	/* "Complete" the syscall so that the wrapper doesn't call the kernel again. */
+	SET_STATUS_from_SysRes(res);
 }
 
 PRE(sys_lwp_gettid)
@@ -475,6 +672,11 @@ PRE(sys_lwp_kill)
 	PRINT("sys_lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
 	PRE_REG_READ3(int, "lwp_kill",
 		vki_pid_t, pid, vki_lwpid_t, tid, int, sig);
+	
+	if (ML_(do_sigkill)(ARG1, -1))
+		SET_STATUS_Success(0);
+	else
+		SET_STATUS_Failure(VKI_EINVAL);
 }
 
 PRE(sys_lwp_rtprio)
@@ -535,6 +737,101 @@ PRE(sys_lwp_setname)
    lwp* wrappers END
    ------------------------------------------------------------------ */
 
+/* ---------------------------------------------------------------------
+   varsym* wrappers
+   ------------------------------------------------------------------ */
+
+
+PRE(sys_varsym_get)
+{
+	PRINT("sys_varsym_get ( %d, %p, %p, %d )", ARG1, (void*)ARG2, (void*)ARG3,
+		ARG4);
+	PRE_REG_READ4(int, "varsym_get",
+		int, mask, const char*, wild, char*, buf, int, bufsize);
+}
+
+POST(sys_varsym_get)
+{
+	if (RES != -1) // bug in kern_varsym.c, can revert to 0 when fixed
+		POST_MEM_WRITE(ARG3, ARG4);
+}
+
+PRE(sys_varsym_set)
+{
+	PRINT("sys_varsym_set ( %d, %p, %p )", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "varsym_set",
+		int, level, const char*, name, const char*, data);
+}
+
+PRE(sys_varsym_list)
+{
+	PRINT("sys_varsym_list ( %d, %p, %p, %d )", ARG1, (void*)ARG2, (void*)ARG3,
+		ARG4);
+	PRE_REG_READ4(int, "varsym_list",
+		int, level, char*, buf, int, maxsize, int*, marker);
+}
+
+POST(sys_varsym_list)
+{
+	char *p = ARG2;
+	int *marker = ARG4;
+	int nbytes = 0;
+
+	if (p && marker)
+	{
+		while (marker--)
+		{
+			while (*p)
+				++p, ++nbytes;
+			++p;
+			++nbytes;
+		}
+
+		POST_MEM_WRITE(ARG2, nbytes);
+	}
+}
+
+/* ---------------------------------------------------------------------
+   varsym* wrappers END
+   ------------------------------------------------------------------ */
+
+PRE(sys_extexit)
+{
+	ThreadId t;
+
+	PRINT("sys_extexit (%d, %d, %p)", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(void, "extexit",
+		int, how, int, status, void*, addr);
+
+	if (ARG1 | VKI_EXTEXIT_SETINT && ARG3)
+		PRE_MEM_READ("extexit(addr)", ARG3, sizeof(int));
+
+	if (ARG1 | VKI_EXTEXIT_LWP)
+	{
+		if (!ML_(do_sigkill)(ARG1, -1))
+		{
+			SET_STATUS_Failure(VKI_EINVAL);
+			return;
+		}
+	}
+	else if (ARG1 | VKI_EXTEXIT_PROC)
+	{
+		for (t = 1; t < VG_N_THREADS; ++t)
+		{
+			if (VG_(threads)[t].status == VgTs_Empty)
+				continue;
+
+			VG_(threads)[t].exitreason = VgSrc_ExitThread;
+			VG_(threads)[t].os_state.exitcode = ARG2;
+
+			if (t != tid)
+				VG_(get_thread_out_of_syscall)(t);
+		}
+	}
+
+	SET_STATUS_Success(0);
+}
+
 PRE(sys_realpath)
 {
 	PRINT("sys_realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
@@ -547,6 +844,7 @@ PRE(sys_umtx_sleep)
 	PRINT("sys_umtx_sleep (%p, %d, %d)", (void*)ARG1, ARG2, ARG3);
 	PRE_REG_READ3(int, "umtx_sleep",
 		volatile const int*, ptr, int, value, int, timeout);
+	*flags |= SfMayBlock;
 }
 
 PRE(sys_umtx_wakeup)
@@ -1216,6 +1514,14 @@ PRE(sys_futimes)
    PRE_REG_READ2(long, "futimes", int, fd, struct timeval *, tvp);
    if (ARG2 != 0)
       PRE_MEM_READ( "futimes(tvp)", ARG2, sizeof(struct vki_timeval) );
+}
+
+PRE(sys_futimens)
+{
+   PRINT("sys_futimes ( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "futimes", int, fd, const struct timespec*, times);
+   if (ARG2 != 0)
+      PRE_MEM_READ( "futimens(times)", ARG2, sizeof(struct vki_timespec) * 2);
 }
 
 PRE(sys_utrace)
@@ -4595,7 +4901,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // fexecve								   492
    BSDXY(__NR_fstatat,			sys_fstatat),			// 493
-   //BSDX_(__NR_futimesat,		sys_futimesat),			// 494
+   BSDX_(__NR_extexit,			sys_extexit),			// 494
    BSDX_(__NR_linkat,			sys_linkat),			// 495
 
    BSDX_(__NR_mkfifoat,			sys_mkfifoat),			
@@ -4615,6 +4921,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_pselect,          sys_pselect),			// 522
    BSDXY(__NR_pipe2,			sys_pipe2),			// 542
    BSDX_(__NR___realpath,		sys_realpath),		// 551
+   BSDX_(__NR_futimens,			sys_futimens),		// 540
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
 
@@ -4628,6 +4935,10 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_lwp_setaffinity,	sys_lwp_setaffinity),
    BSDXY(__NR_lwp_getaffinity,	sys_lwp_getaffinity),
    BSDX_(__NR_lwp_create2,		sys_lwp_create2),
+
+   BSDXY(__NR_varsym_get,		sys_varsym_get),
+   BSDX_(__NR_varsym_set,		sys_varsym_set),
+   BSDXY(__NR_varsym_list,		sys_varsym_list),
 };
 
 const UInt ML_(syscall_table_size) =

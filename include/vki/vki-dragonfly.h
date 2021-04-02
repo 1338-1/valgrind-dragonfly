@@ -90,11 +90,11 @@ typedef struct {
 //----------------------------------------------------------------------
 
 struct vki_lwp_params {
-	void (*lwp_func)(void*);
-	void *lwp_arg;
-	void *lwp_stack;
-	lwpid_t *lwp_tid1;
-	lwpid_t *lwp_tid2;
+	void (*func)(void*);
+	void *arg;
+	void *stack;
+	lwpid_t *tid1;
+	lwpid_t *tid2;
 };
 
 //----------------------------------------------------------------------
@@ -1596,6 +1596,13 @@ struct vki_dirent {
 //----------------------------------------------------------------------
 // From sys/unistd.h
 //----------------------------------------------------------------------
+
+#define	VKI_EXTEXIT_SIMPLE		0
+#define	VKI_EXTEXIT_SETINT		1
+#define	VKI_EXTEXIT_ACTION(f)	((f) & 0xffff)
+#define	VKI_EXTEXIT_PROC		(0<<16)
+#define	VKI_EXTEXIT_LWP			(1<<16)
+#define	VKI_EXTEXIT_WHO(f)		((f) & (0xffff<<16))
 
 #define VKI_SEEK_SET              0
 #define VKI_SEEK_CUR              1
