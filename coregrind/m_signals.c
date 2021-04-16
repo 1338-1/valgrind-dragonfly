@@ -2573,7 +2573,7 @@ Bool VG_(extend_stack)(ThreadId tid, Addr addr)
       because although it tests whether the segment is mapped
       _somehow_, it doesn't check that it has the right permissions
       (r,w, maybe x) ?  */
-   if (seg->kind == SkAnonC)
+   if (seg->kind == SkAnonC || seg->kind == SkFileC)
       /* addr is already mapped.  Nothing to do. */
       return True;
 
