@@ -2675,6 +2675,15 @@ PRE(sys_madvise)
                  unsigned long, start, vki_size_t, length, int, advice);
 }
 
+PRE(sys_mcontrol)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_mcontrol ( %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %ld, %ld )",
+                        ARG1, ARG2, SARG3, SARG4);
+   PRE_REG_READ4(long, "mcontrol",
+                 unsigned long, start, vki_size_t, length, int, advice, vki_off_t, val);
+}
+
 #if HAVE_MREMAP
 PRE(sys_mremap)
 {

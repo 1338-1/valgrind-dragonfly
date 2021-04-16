@@ -4900,7 +4900,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    //BSDX_(__NR_shm_unlink,		sys_shm_unlink),		// 483
 
    // cpuset								   484
-   // cpuset_setid							   485
+   GENX_(__NR_mcontrol,			sys_mcontrol), 			// 485
    // cpuset_getid							   486
 
    //BSDXY(__NR_cpuset_getaffinity,	sys_cpuset_getaffinity),	// 487
