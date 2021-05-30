@@ -4654,6 +4654,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // nosys								   172
    BSDXY(__NR_extpread,			sys_pread),				// 173
+   BSDX_(__NR_extpwrite,		sys_pwrite),			// 174
    //BSDXY(__NR_pread6,			sys_pread),			
    //BSDX_(__NR_pwrite6,			sys_pwrite),			// 174
    // nosys								   175
