@@ -2054,6 +2054,55 @@ POST(sys_mq_open)
          ML_(record_fd_open_with_given_name)(tid, RES, (Char*)ARG1);
    }
 }
+PRE(sys_mq_close)
+{
+   PRINT("sys_mq_close( %d )", ARG1);
+   PRE_REG_READ1(long, "mq_close", vki_mqd_t, mqdes);
+}
+
+#if 0 // Alt
+PRE(sys_mq_notify)
+{
+   PRINT("sys_mq_notify( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "mq_notify",
+   		vki_mqd_t, mqdes, const struct vki_sigevent*, notification);
+   if (ARG2 != 0)
+	   PRE_MEM_READ("mq_notify(notification)", ARG2, sizeof(struct vki_sigevent));
+}
+PRE(sys_mq_timedsend)
+{
+   PRINT("sys_mq_timedsend( %ld, %#lx, %zu, %lu, %#lx )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(long, "mq_timedsend",
+   		vki_mqd_t, mqdes, const char*, msg_ptr, vki_size_t, msg_len,
+		unsigned, msg_prio, const struct vki_timespec*, abs_timeout);
+   if (ARG5 != 0)
+      PRE_MEM_READ("mq_timedsend(abs_timeout)", ARG5, sizeof(struct vki_timespec));
+}
+POST(sys_mq_timedsend)
+{
+   if (RES != -1 && ARG2 != 0)
+      POST_MEM_WRITE(ARG2, ARG3);
+}
+PRE(sys_mq_timedreceive)
+{
+   PRINT("sys_mq_timedreceive( %ld, %#lx, %zu, %lu, %#lx )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(long, "mq_timedreceive",
+   		vki_mqd_t, mqdes, char*, msg_ptr, vki_size_t, msg_len,
+		unsigned*, msg_prio, const struct vki_timespec*, abs_timeout);
+   if (ARG5 != 0)
+      PRE_MEM_READ("mq_timedreceive(abs_timeout)", ARG5, sizeof(struct vki_timespec));
+}
+POST(sys_mq_timedreceive)
+{
+   if (RES != -1)
+   {
+   		if (ARG2 != 0)
+			POST_MEM_WRITE(ARG2, ARG3);
+   		if (ARG4 != 0)
+			POST_MEM_WRITE(ARG4, sizeof(unsigned));
+   }
+}
+#endif
 
 PRE(sys_mq_unlink)
 {
@@ -2061,8 +2110,6 @@ PRE(sys_mq_unlink)
    PRE_REG_READ1(long, "mq_unlink", const char *, name);
    PRE_MEM_RASCIIZ( "mq_unlink(name)", ARG1 );
 }
-
-#if 0
 PRE(sys_mq_timedsend)
 {
    *flags |= SfMayBlock;
@@ -2146,7 +2193,61 @@ POST(sys_mq_getsetattr)
       POST_MEM_WRITE( ARG3, sizeof(struct vki_mq_attr) );
 }
 
-#endif
+PRE(sys_mq_setattr)
+{
+   PRINT("sys_mq_setattr( %ld, %#lx, %#lx )", ARG1, ARG2, ARG3);
+   PRE_REG_READ3(long, "mq_setattr",
+   		vki_mqd_t, mqdes, const struct vki_mq_attr*, mqstat,
+		struct vki_mq_attr *restrict, omqstat);
+   if (ARG2 != 0)
+	   PRE_MEM_READ("mq_setattr(mqstat)", ARG2, sizeof(struct vki_mq_attr));
+}
+POST(sys_mq_setattr)
+{
+   if (RES != -1 && ARG3 != 0)
+   	   POST_MEM_WRITE(ARG3, sizeof(struct vki_mq_attr));
+}
+PRE(sys_mq_getattr)
+{
+   PRINT("sys_mq_getattr( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "mq_getattr",
+   		vki_mqd_t, mqdes, struct vki_mq_attr*, mqstat);
+}
+POST(sys_mq_getattr)
+{
+   if (RES != -1 && ARG2 != 0)
+   	   POST_MEM_WRITE(ARG2, sizeof(struct vki_mq_attr));
+}
+
+PRE(sys_mq_send)
+{
+   PRINT("sys_mq_send( %ld, %#lx, %zu, %lu )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "mq_send",
+   		vki_mqd_t, mqdes, const char*, msg_ptr, vki_size_t, msg_len,
+		unsigned, msg_prio);
+}
+POST(sys_mq_send)
+{
+   if (RES != -1 && ARG2 != 0)
+      POST_MEM_WRITE(ARG2, ARG3);
+}
+PRE(sys_mq_receive)
+{
+   PRINT("sys_mq_receive( %ld, %#lx, %zu, %lu )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "mq_receive",
+   		vki_mqd_t, mqdes, char*, msg_ptr, vki_size_t, msg_len,
+		unsigned*, msg_prio);
+}
+POST(sys_mq_receive)
+{
+   if (RES != -1)
+   {
+   		if (ARG2 != 0)
+			POST_MEM_WRITE(ARG2, ARG3);
+   		if (ARG4 != 0)
+			POST_MEM_WRITE(ARG4, sizeof(unsigned));
+   }
+}
 
 /* ---------------------------------------------------------------------
    clock_* wrappers
@@ -4907,13 +5008,16 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    //BSDX_(__NR_thr_new,			sys_thr_new),			// 455
 
    // sigqueue								   456
-   //BSDXY(__NR_kmq_open,          sys_mq_open),			// 457
-   // kmq_setattr							   458
-   // kmq_timedreceive							   459
-
-   // kmq_timedsend							   460
-   // kmq_notify							   461
-   //BSDX_(__NR_kmq_unlink,        sys_mq_unlink),			// 462
+   BSDXY(__NR_mq_open,        	sys_mq_open),			// 457
+   BSDX_(__NR_mq_close,        	sys_mq_close),			// 457
+   BSDX_(__NR_mq_notify,      	sys_mq_notify),
+   BSDXY(__NR_mq_setattr,     	sys_mq_setattr),
+   BSDXY(__NR_mq_getattr,     	sys_mq_getattr),
+   BSDXY(__NR_mq_send,        	sys_mq_send),
+   BSDXY(__NR_mq_receive,     	sys_mq_receive),
+   BSDX_(__NR_mq_timedsend,   	sys_mq_timedsend),
+   BSDXY(__NR_mq_timedreceive, 	sys_mq_timedreceive),
+   BSDX_(__NR_mq_unlink,		sys_mq_unlink),				// 462
    // abort2								   463
 
    //BSDX_(__NR_thr_set_name,		sys_thr_set_name),		// 464
@@ -5003,6 +5107,16 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_varsym_get,		sys_varsym_get),
    BSDX_(__NR_varsym_set,		sys_varsym_set),
    BSDXY(__NR_varsym_list,		sys_varsym_list),
+	
+	// vmspace_*
+	//BSDX_(__NR_vmspace_create, 	sys_vmspace_create),
+	//BSDX_(__NR_vmspace_destroy, 	sys_vmspace_destroy),
+	//BSDX_(__NR_vmspace_ctl, 	sys_vmspace_ctl),
+	//BSDX_(__NR_vmspace_mmap, 		sys_vmspace_mmap),
+	//BSDX_(__NR_vmspace_munmap, 	sys_vmspace_munmap),
+	//BSDX_(__NR_vmspace_mcontrol, 	sys_vmspace_mcontrol),
+	//BSDX_(__NR_vmspace_pread, 		sys_vmspace_pread),
+	//BSDX_(__NR_vmspace_pwrite, 	sys_vmspace_pwrite),
 };
 
 const UInt ML_(syscall_table_size) =
