@@ -672,11 +672,18 @@ PRE(sys_lwp_kill)
 	PRINT("sys_lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
 	PRE_REG_READ3(int, "lwp_kill",
 		vki_pid_t, pid, vki_lwpid_t, tid, int, sig);
+
+	*flags = SfPollAfter;
 	
-	if (ML_(do_sigkill)(ARG1, -1))
-		SET_STATUS_Success(0);
-	else
-		SET_STATUS_Failure(VKI_EINVAL);
+	if (ARG3 == VKI_SIGKILL) {
+		if (ML_(do_sigkill)(ARG2, ARG1))
+			SET_STATUS_Success(0);
+		else
+			SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	*flags = SfMayBlock;
 }
 
 PRE(sys_lwp_rtprio)
