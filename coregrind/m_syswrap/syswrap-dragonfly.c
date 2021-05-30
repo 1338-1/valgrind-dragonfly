@@ -1785,10 +1785,49 @@ POST(sys_kldsym)
    POST_MEM_WRITE( (Addr)&kslp->symsize, sizeof(kslp->symsize) );
 }
 
-#if 0
 /* ---------------------------------------------------------------------
    aio_* wrappers
    ------------------------------------------------------------------ */
+
+PRE(sys_aio_error)
+{
+	PRINT("sys_aio_error ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_error", const struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_cancel)
+{
+	PRINT("sys_aio_cancel ( %d, %p )", (void*)ARG1, ARG2);
+	PRE_REG_READ2(long, "aio_cancel", int, filedes, const struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_read)
+{
+	PRINT("sys_aio_read ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_read", struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_write)
+{
+	PRINT("sys_aio_write ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_write", struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_return)
+{
+	PRINT("sys_aio_return ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_return", struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_suspend)
+{
+	PRINT("sys_aio_suspend ( %p, %d, %p )", (void*)ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(long, "aio_suspend",
+		const struct vki_aiocb *const, iocbs[],
+		int, niocb, const struct vki_timespec*, timeout);
+}
+
+#if 0
 
 // Nb: this wrapper has to pad/unpad memory around the syscall itself,
 // and this allows us to control exactly the code that gets run while
@@ -4934,6 +4973,14 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_futimens,			sys_futimens),		// 540
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
+
+   // aio_*
+   BSDX_(__NR_aio_error, 		sys_aio_error),
+   BSDX_(__NR_aio_cancel, 		sys_aio_cancel),
+   BSDX_(__NR_aio_read, 		sys_aio_read),
+   BSDX_(__NR_aio_write, 		sys_aio_write),
+   BSDX_(__NR_aio_return, 		sys_aio_return),
+   BSDX_(__NR_aio_suspend, 		sys_aio_suspend),
 
    // lwp_*
    BSDX_(__NR_lwp_create, 		sys_lwp_create),
