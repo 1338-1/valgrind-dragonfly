@@ -272,14 +272,14 @@ DECL_TEMPLATE(dragonfly, sys_fcntl);
 DECL_TEMPLATE(dragonfly, sys_ioctl);
 DECL_TEMPLATE(dragonfly, sys_mq_open);
 DECL_TEMPLATE(dragonfly, sys_mq_unlink);
-DECL_TEMPLATE(dragonfly, sys_mq_timedsend)
-DECL_TEMPLATE(dragonfly, sys_mq_timedreceive)
-DECL_TEMPLATE(dragonfly, sys_mq_notify)
-DECL_TEMPLATE(dragonfly, sys_mq_getsetattr)
-DECL_TEMPLATE(dragonfly, sys_mq_setattr)
-DECL_TEMPLATE(dragonfly, sys_mq_getattr)
-DECL_TEMPLATE(dragonfly, sys_mq_send)
-DECL_TEMPLATE(dragonfly, sys_mq_receive)
+DECL_TEMPLATE(dragonfly, sys_mq_timedsend);
+DECL_TEMPLATE(dragonfly, sys_mq_timedreceive);
+DECL_TEMPLATE(dragonfly, sys_mq_notify);
+DECL_TEMPLATE(dragonfly, sys_mq_getsetattr);
+DECL_TEMPLATE(dragonfly, sys_mq_setattr);
+DECL_TEMPLATE(dragonfly, sys_mq_getattr);
+DECL_TEMPLATE(dragonfly, sys_mq_send);
+DECL_TEMPLATE(dragonfly, sys_mq_receive);
 
 #endif   // __PRIV_SYSWRAP_DRAGONFLY_H
 
