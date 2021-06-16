@@ -331,9 +331,9 @@ Off64T VG_(lseek) ( Int fd, Off64T offset, Int whence )
    vg_assert(sizeof(Off64T) == sizeof(Word));
    return sr_isError(res) ? (-1) : sr_Res(res);
 #  elif defined(VGO_dragonfly)
-   SysRes res = VG_(do_syscall3)(__NR_lseek, fd, offset, whence);
+   SysRes res = VG_(do_syscall4)(__NR_lseek, fd, 0, offset, whence);
    vg_assert(sizeof(Off64T) == sizeof(sr_Res(res)));
-   return sr_isError(res) ? (-1) : res._val2;
+   return sr_isError(res) ? (-1) : sr_Res(res);
 #  else
 #    error "Unknown plat"
 #  endif

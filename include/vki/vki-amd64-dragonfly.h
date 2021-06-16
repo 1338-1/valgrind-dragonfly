@@ -98,29 +98,33 @@ struct vki_sigcontext {
  * Note that on 8.x trapno and err are no-more meaningful, but we
  * don't set them anyway.
  */
+
 struct vki_user_regs_struct {
-	vki_register_t r15;
-	vki_register_t r14;
-	vki_register_t r13;
-	vki_register_t r12;
-	vki_register_t r11;
-	vki_register_t r10;
-	vki_register_t r9;
-	vki_register_t r8;
-	vki_register_t rdi;
-	vki_register_t rsi;
-	vki_register_t rbp;
-	vki_register_t rbx;
-	vki_register_t rdx;
-	vki_register_t rcx;
-	vki_register_t rax;
-	vki_register_t trapno;
-	vki_register_t err;
-	vki_register_t rip;
-	vki_register_t cs;
-	vki_register_t rflags;
-	vki_register_t rsp;
-	vki_register_t ss;
+	vki_register_t	rdi;
+	vki_register_t	rsi;
+	vki_register_t	rdx;
+	vki_register_t	rcx;
+	vki_register_t	r8;
+	vki_register_t	r9;
+	vki_register_t	rax;
+	vki_register_t	rbx;
+	vki_register_t	rbp;
+	vki_register_t	r10;
+	vki_register_t	r11;
+	vki_register_t	r12;
+	vki_register_t	r13;
+	vki_register_t	r14;
+	vki_register_t	r15;
+	vki_register_t	xflags;
+	vki_register_t	trapno;
+	vki_register_t	addr;
+	vki_register_t	flags;
+	vki_register_t	err;
+	vki_register_t	rip;
+	vki_register_t	cs;
+	vki_register_t	rflags;
+	vki_register_t	rsp;
+	vki_register_t	ss;
 };
 
 struct vki_reg_struct {
