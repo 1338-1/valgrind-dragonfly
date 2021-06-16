@@ -944,6 +944,15 @@ PRE(sys_connect)
    ML_(generic_PRE_sys_connect)(tid, ARG1,ARG2,ARG3);
 }
 
+PRE(sys_extconnect)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_extconnect ( %ld, %#lx, %ld )",ARG1,ARG2,ARG3);
+   PRE_REG_READ4(long, "extconnect",
+                 int, sockfd, int, flags, struct sockaddr *, serv_addr, int, addrlen);
+   ML_(generic_PRE_sys_connect)(tid, ARG1,ARG3,ARG4);
+}
+
 PRE(sys_accept)
 {
    *flags |= SfMayBlock;
@@ -958,6 +967,40 @@ POST(sys_accept)
    vg_assert(SUCCESS);
    r = ML_(generic_POST_sys_accept)(tid, VG_(mk_SysRes_Success)(RES),
                                          ARG1,ARG2,ARG3);
+   SET_STATUS_from_SysRes(r);
+}
+
+PRE(sys_accept4)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_accept4 ( %ld, %#lx, %ld, %d )",ARG1,ARG2,ARG3,ARG4);
+   PRE_REG_READ4(long, "accept4",
+                 int, s, struct sockaddr *, addr, int, *addrlen, int, flags);
+   ML_(generic_PRE_sys_accept)(tid, ARG1,ARG2,ARG3);
+}
+POST(sys_accept4)
+{
+   SysRes r;
+   vg_assert(SUCCESS);
+   r = ML_(generic_POST_sys_accept)(tid, VG_(mk_SysRes_Success)(RES),
+                                         ARG1,ARG2,ARG3);
+   SET_STATUS_from_SysRes(r);
+}
+
+PRE(sys_extaccept)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_extaccept ( %ld, %d, %#lx, %ld )",ARG1,ARG2,ARG3,ARG4);
+   PRE_REG_READ4(long, "extaccept",
+                 int, s, int, flags, struct sockaddr *, addr, int, *addrlen);
+   ML_(generic_PRE_sys_accept)(tid, ARG1,ARG3,ARG4);
+}
+POST(sys_extaccept)
+{
+   SysRes r;
+   vg_assert(SUCCESS);
+   r = ML_(generic_POST_sys_accept)(tid, VG_(mk_SysRes_Success)(RES),
+                                         ARG1,ARG3,ARG4);
    SET_STATUS_from_SysRes(r);
 }
 
@@ -4475,6 +4518,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_sendmsg,			sys_sendmsg),			// 28
    BSDXY(__NR_recvfrom,			sys_recvfrom),			// 29
    BSDXY(__NR_accept,			sys_accept),			// 30
+   BSDXY(__NR_accept4,			sys_accept4),			// 30
+   BSDXY(__NR_extaccept,		sys_extaccept),			// 30
    BSDXY(__NR_getpeername,		sys_getpeername),		// 31
 
    BSDXY(__NR_getsockname,		sys_getsockname),		// 32
@@ -4560,6 +4605,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_setpriority,		sys_setpriority),		// 96
    BSDXY(__NR_socket,			sys_socket),			// 97
    BSDX_(__NR_connect,			sys_connect),			// 98
+   BSDX_(__NR_extconnect,		sys_extconnect),		// 98
    // 4.3 accept							   99
 
    GENX_(__NR_getpriority,		sys_getpriority),		// 100
