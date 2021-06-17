@@ -2412,10 +2412,22 @@ PRE(sys_timer_delete)
    PRINT("sys_timer_delete( %#lx )", ARG1);
    PRE_REG_READ1(long, "timer_delete", vki_timer_t, timerid);
 }
+#endif
 
 /* ---------------------------------------------------------------------
    sched_* wrappers
    ------------------------------------------------------------------ */
+
+PRE(sys_usched_set)
+{
+   PRINT("usched_set ( %ld, %d, %p, %d )", ARG1, ARG2, (void*)ARG3, ARG4 );
+   PRE_REG_READ4(long, "usched_set",
+   		vki_pid_t, pid, int, cmd, void*, data, int, bytes);
+}
+POST(sys_usched_set)
+{
+	POST_MEM_WRITE(ARG3, ARG4);
+}
 
 PRE(sys_sched_setparam)
 {
@@ -2457,14 +2469,6 @@ PRE(sys_sched_setscheduler)
 		    ARG3, sizeof(struct vki_sched_param));
 }
 
-PRE(sys_sched_yield)
-{
-   *flags |= SfMayBlock;
-   PRINT("sched_yield()");
-   PRE_REG_READ0(long, "sched_yield");
-}
-#endif
-
 PRE(sys_sched_get_priority_max)
 {
    PRINT("sched_get_priority_max ( %ld )", ARG1);
@@ -2475,6 +2479,21 @@ PRE(sys_sched_get_priority_min)
 {
    PRINT("sched_get_priority_min ( %ld )", ARG1);
    PRE_REG_READ1(long, "sched_get_priority_min", int, policy);
+}
+
+PRE(sys_sched_rr_get_interval)
+{
+   PRINT("sched_rr_get_interval ( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2);
+   PRE_REG_READ2(int, "sched_rr_get_interval",
+                 vki_pid_t, pid,
+                 struct vki_timespec *, tp);
+   PRE_MEM_WRITE("sched_rr_get_interval(timespec)",
+                 ARG2, sizeof(struct vki_timespec));
+}
+
+POST(sys_sched_rr_get_interval)
+{
+   POST_MEM_WRITE(ARG2, sizeof(struct vki_timespec));
 }
 
 #if 0
@@ -4893,16 +4912,17 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_mlockall,			sys_mlockall),			// 324
    BSDX_(__NR_munlockall,		sys_munlockall),		// 325
    BSDXY(__NR___getcwd,			sys___getcwd),			// 326
-// BSDXY(__NR_sched_setparam,		sys_sched_setparam),		// 327
+   BSDXY(__NR_usched_set,		sys_usched_set),
+   BSDXY(__NR_sched_setparam,		sys_sched_setparam),		// 327
 
-// BSDXY(__NR_sched_getparam,		sys_sched_getparam),		// 328
-// BSDX_(__NR_sched_setscheduler,	sys_sched_setscheduler),	// 329
-// BSDX_(__NR_sched_getscheduler,	sys_sched_getscheduler),	// 330
+   BSDXY(__NR_sched_getparam,		sys_sched_getparam),		// 328
+   BSDX_(__NR_sched_setscheduler,	sys_sched_setscheduler),	// 329
+   BSDX_(__NR_sched_getscheduler,	sys_sched_getscheduler),	// 330
    BSDX_(__NR_sched_yield,		sys_sched_yield),		// 331
 
    BSDX_(__NR_sched_get_priority_max,	sys_sched_get_priority_max),	// 332
    BSDX_(__NR_sched_get_priority_min,	sys_sched_get_priority_min),	// 333
-// BSDXY(__NR_sched_rr_get_interval,	sys_sched_rr_get_interval),	// 334
+   BSDXY(__NR_sched_rr_get_interval,	sys_sched_rr_get_interval),	// 334
    BSDX_(__NR_utrace,			sys_utrace),			// 335
 
    // compat3 sendfile							   336
