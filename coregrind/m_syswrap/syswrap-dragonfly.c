@@ -3249,7 +3249,6 @@ PRE(sys_sigsuspend)
    }
 }
 
-#if 0
 /* ---------------------------------------------------------------------
    linux msg* wrapper helpers
    ------------------------------------------------------------------ */
@@ -3293,29 +3292,16 @@ ML_(linux_PRE_sys_msgctl) ( ThreadId tid,
    /* int msgctl(int msqid, int cmd, struct msqid_ds *buf); */
    switch (arg1 /* cmd */) {
    case VKI_IPC_INFO:
-   case VKI_MSG_INFO:
-   case VKI_IPC_INFO|VKI_IPC_64:
-   case VKI_MSG_INFO|VKI_IPC_64:
       PRE_MEM_WRITE( "msgctl(IPC_INFO, buf)",
                      arg2, sizeof(struct vki_msginfo) );
       break;
    case VKI_IPC_STAT:
-   case VKI_MSG_STAT:
       PRE_MEM_WRITE( "msgctl(IPC_STAT, buf)",
                      arg2, sizeof(struct vki_msqid_ds) );
-      break;
-   case VKI_IPC_STAT|VKI_IPC_64:
-   case VKI_MSG_STAT|VKI_IPC_64:
-      PRE_MEM_WRITE( "msgctl(IPC_STAT, arg.buf)",
-                     arg2, sizeof(struct vki_msqid64_ds) );
       break;
    case VKI_IPC_SET:
       PRE_MEM_READ( "msgctl(IPC_SET, arg.buf)",
                     arg2, sizeof(struct vki_msqid_ds) );
-      break;
-   case VKI_IPC_SET|VKI_IPC_64:
-      PRE_MEM_READ( "msgctl(IPC_SET, arg.buf)",
-                    arg2, sizeof(struct vki_msqid64_ds) );
       break;
    }
 }
@@ -3326,23 +3312,59 @@ ML_(linux_POST_sys_msgctl) ( ThreadId tid,
 {
    switch (arg1 /* cmd */) {
    case VKI_IPC_INFO:
-   case VKI_MSG_INFO:
-   case VKI_IPC_INFO|VKI_IPC_64:
-   case VKI_MSG_INFO|VKI_IPC_64:
       POST_MEM_WRITE( arg2, sizeof(struct vki_msginfo) );
       break;
    case VKI_IPC_STAT:
-   case VKI_MSG_STAT:
       POST_MEM_WRITE( arg2, sizeof(struct vki_msqid_ds) );
-      break;
-   case VKI_IPC_STAT|VKI_IPC_64:
-   case VKI_MSG_STAT|VKI_IPC_64:
-      POST_MEM_WRITE( arg2, sizeof(struct vki_msqid64_ds) );
       break;
    }
 }
 
-#endif
+PRE(sys_msgget)
+{
+   PRINT("sys_msgget ( %ld, %ld )", SARG1, SARG2);
+   PRE_REG_READ2(long, "msgget", vki_key_t, key, int, msgflg);
+}
+
+PRE(sys_msgsnd)
+{
+   PRINT("sys_msgsnd ( %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %ld )",
+         SARG1, ARG2, ARG3, SARG4);
+   PRE_REG_READ4(long, "msgsnd",
+                 int, msqid, struct msgbuf *, msgp, vki_size_t, msgsz, int, msgflg);
+   ML_(linux_PRE_sys_msgsnd)(tid, ARG1,ARG2,ARG3,ARG4);
+   if ((ARG4 & VKI_IPC_NOWAIT) == 0)
+      *flags |= SfMayBlock;
+}
+
+PRE(sys_msgrcv)
+{
+   PRINT("sys_msgrcv ( %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %ld, %ld )",
+         SARG1, ARG2, ARG3, SARG4, SARG5);
+   PRE_REG_READ5(long, "msgrcv",
+                 int, msqid, struct msgbuf *, msgp, vki_size_t, msgsz,
+                 long, msgytp, int, msgflg);
+   ML_(linux_PRE_sys_msgrcv)(tid, ARG1,ARG2,ARG3,ARG4,ARG5);
+   if ((ARG5 & VKI_IPC_NOWAIT) == 0)
+      *flags |= SfMayBlock;
+}
+POST(sys_msgrcv)
+{
+   ML_(linux_POST_sys_msgrcv)(tid, RES,ARG1,ARG2,ARG3,ARG4,ARG5);
+}
+
+PRE(sys_msgctl)
+{
+   PRINT("sys_msgctl ( %ld, %ld, %#" FMT_REGWORD "x )", SARG1, SARG2, ARG3);
+   PRE_REG_READ3(long, "msgctl",
+                 int, msqid, int, cmd, struct msqid_ds *, buf);
+   ML_(linux_PRE_sys_msgctl)(tid, ARG1,ARG2,ARG3);
+}
+
+POST(sys_msgctl)
+{
+   ML_(linux_POST_sys_msgctl)(tid, RES,ARG1,ARG2,ARG3);
+}
 
 PRE(sys_chflags)
 {
@@ -4786,10 +4808,10 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_semop,			sys_semop),			// 222
    // unimpl semconfig							   223
 
-// BSDXY(__NR_msgctl,			sys_msgctl),			// 224
-// BSDX_(__NR_msgget,			sys_msgget),			// 225
-// BSDX_(__NR_msgsnd,			sys_msgsnd),			// 226
-// BSDXY(__NR_msgrcv,			sys_msgrcv),			// 227
+   BSDXY(__NR_msgctl,			sys_msgctl),			// 224
+   BSDX_(__NR_msgget,			sys_msgget),			// 225
+   BSDX_(__NR_msgsnd,			sys_msgsnd),			// 226
+   BSDXY(__NR_msgrcv,			sys_msgrcv),			// 227
 
    BSDXY(__NR_shmat,			sys_shmat),				// 228
    //BSDXY(__NR_shmctl7,			sys_shmctl7),			// 229

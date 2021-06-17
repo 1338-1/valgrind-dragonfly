@@ -1634,22 +1634,25 @@ struct vki_dirent {
 #define VKI_MSGCTL              14
 #endif
 
+typedef	unsigned long	vki_msglen_t;
+typedef	unsigned long	vki_msgqnum_t;
+
 struct vki_msqid_ds {
-	struct vki_ipc_perm msg_perm;
-	struct vki_msg *msg_first;		/* first message on queue,unused  */
-	struct vki_msg *msg_last;		/* last message in queue,unused */
-	vki_uint32_t msg_cbytes;	/* current number of bytes on queue */
-	vki_uint32_t msg_qnum;	/* number of messages in queue */
-	vki_uint32_t msg_qbytes;	/* max number of bytes on queue */
-	vki_pid_t	msg_lspid;	/* pid of last msgsnd */
-	vki_pid_t	msg_lrpid;	/* last receive pid */
-	vki_time_t	msg_stime;	/* last msgsnd time */
-	vki_uint32_t	msg_pad1;
-	vki_time_t	msg_rtime;	/* last msgrcv time */
-	vki_uint32_t	msg_pad2;
-	vki_time_t 	msg_ctime;	/* last change time */
-	vki_uint32_t	msg_pad3;
-	vki_uint32_t	msg_pad4[4];
+	struct	vki_ipc_perm msg_perm;	/* msg queue permission bits */
+	struct	vki_msg *msg_first;	/* first message in the queue. */
+	struct	vki_msg *msg_last;	/* last message in the queue. */
+	vki_msglen_t msg_cbytes;	/* number of bytes in use on the queue */
+	vki_msgqnum_t msg_qnum;	/* number of msgs in the queue */
+	vki_msglen_t msg_qbytes;	/* max # of bytes on the queue */
+	vki_pid_t	msg_lspid;	/* pid of last msgsnd() */
+	vki_pid_t	msg_lrpid;	/* pid of last msgrcv() */
+	vki_time_t	msg_stime;	/* time of last msgsnd() */
+	long	msg_pad1;
+	vki_time_t	msg_rtime;	/* time of last msgrcv() */
+	long	msg_pad2;
+	vki_time_t	msg_ctime;	/* time of last msgctl() */
+	long	msg_pad3;
+	long	msg_pad4[4];
 };
 
 struct vki_msgbuf {
@@ -1657,6 +1660,14 @@ struct vki_msgbuf {
 	char mtext[1];      /* message text */
 };
 
+struct vki_msginfo {
+	int	msgmax,		/* max chars in a message */
+		msgmni,		/* max message queue identifiers */
+		msgmnb,		/* max chars in a queue */
+		msgtql,		/* max messages in system */
+		msgssz,		/* size of a message segment (see notes above) */
+		msgseg;		/* number of message segments */
+};
 
 //----------------------------------------------------------------------
 // From sys/shm.h
