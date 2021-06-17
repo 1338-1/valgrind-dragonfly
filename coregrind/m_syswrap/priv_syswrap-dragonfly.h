@@ -282,6 +282,7 @@ DECL_TEMPLATE(dragonfly, sys_mq_setattr);
 DECL_TEMPLATE(dragonfly, sys_mq_getattr);
 DECL_TEMPLATE(dragonfly, sys_mq_send);
 DECL_TEMPLATE(dragonfly, sys_mq_receive);
+DECL_TEMPLATE(dragonfly, sys_ppoll);
 
 #endif   // __PRIV_SYSWRAP_DRAGONFLY_H
 

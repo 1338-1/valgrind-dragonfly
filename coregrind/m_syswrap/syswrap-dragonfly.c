@@ -1788,6 +1788,59 @@ POST(sys_statfs6)
    POST_MEM_WRITE( ARG2, sizeof(struct vki_statfs6) );
 }
 
+PRE(sys_ppoll)
+{
+   UInt i;
+   struct vki_pollfd* ufds = (struct vki_pollfd *)(Addr)ARG1;
+   *flags |= SfMayBlock | SfPostOnFail;
+   PRINT("sys_ppoll ( %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#" FMT_REGWORD
+         "x, %#" FMT_REGWORD "x, %" FMT_REGWORD "u )\n",
+         ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(long, "ppoll",
+                 struct vki_pollfd *, ufds, unsigned int, nfds,
+                 struct vki_timespec *, tsp, vki_sigset_t *, sigmask,
+                 vki_size_t, sigsetsize);
+
+   for (i = 0; i < ARG2; i++) {
+      PRE_MEM_READ( "ppoll(ufds.fd)",
+                    (Addr)(&ufds[i].fd), sizeof(ufds[i].fd) );
+      PRE_MEM_READ( "ppoll(ufds.events)",
+                    (Addr)(&ufds[i].events), sizeof(ufds[i].events) );
+      PRE_MEM_WRITE( "ppoll(ufds.revents)",
+                     (Addr)(&ufds[i].revents), sizeof(ufds[i].revents) );
+   }
+
+   if (ARG3)
+      PRE_MEM_READ( "ppoll(tsp)", ARG3, sizeof(struct vki_timespec) );
+   if (ARG4 != 0 && sizeof(vki_sigset_t) == ARG5) {
+      const vki_sigset_t *guest_sigmask = (vki_sigset_t *)(Addr)ARG4;
+      PRE_MEM_READ( "ppoll(sigmask)", ARG4, ARG5);
+      if (!ML_(safe_to_deref)(guest_sigmask, sizeof(*guest_sigmask))) {
+         ARG4 = 1; /* Something recognisable to POST() hook. */
+      } else {
+         vki_sigset_t *vg_sigmask =
+             VG_(malloc)("syswrap.ppoll.1", sizeof(*vg_sigmask));
+         ARG4 = (Addr)vg_sigmask;
+         *vg_sigmask = *guest_sigmask;
+         VG_(sanitize_client_sigmask)(vg_sigmask);
+      }
+   }
+}
+
+POST(sys_ppoll)
+{
+   vg_assert(SUCCESS || FAILURE);
+   if (SUCCESS && (RES >= 0)) {
+      UInt i;
+      struct vki_pollfd* ufds = (struct vki_pollfd *)(Addr)ARG1;
+      for (i = 0; i < ARG2; i++)
+	 POST_MEM_WRITE( (Addr)(&ufds[i].revents), sizeof(ufds[i].revents) );
+   }
+   if (ARG4 != 0 && ARG5 == sizeof(vki_sigset_t) && ARG4 != 1) {
+      VG_(free)((vki_sigset_t *) (Addr)ARG4);
+	}
+}
+
 /* ---------------------------------------------------------------------
    kld* wrappers
    ------------------------------------------------------------------ */
@@ -4790,6 +4843,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // netbsd newreboot							   208
    GENXY(__NR_poll,			sys_poll),			// 209
+   BSDXY(__NR_ppoll,		sys_ppoll),
    //BSDX_(__NR_lkmnosys0,		sys_lkmnosys0),			// 210
    //BSDX_(__NR_lkmnosys1,		sys_lkmnosys1),			// 211
 
