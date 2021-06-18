@@ -2216,6 +2216,58 @@ struct vki_kld_sym_lookup {
 #  define VKI_INIT_ARCH_ELF_STATE { }
 
 #endif
+
+//----------------------------------------------------------------------
+// From sys/procctl.h
+//----------------------------------------------------------------------
+
+typedef enum vki_idtype {
+	/*
+	 * These names were mostly lifted from Solaris source code and
+	 * still use Solaris style naming to avoid breaking any
+	 * OpenSolaris code which has been ported to FreeBSD/DragonFly.
+	 * There is no clear DragonFly counterpart for all of the names, but
+	 * some have a clear correspondence to DragonFly entities.
+	 *
+	 * The numerical values are kept synchronized with the Solaris
+	 * values.
+	 */
+	P_PID,			/* A process identifier. */
+	P_PPID,			/* A parent process identifier.	*/
+	P_PGID,			/* A process group identifier. */
+	P_SID,			/* A session identifier. */
+	P_CID,			/* A scheduling class identifier. */
+	P_UID,			/* A user identifier. */
+	P_GID,			/* A group identifier. */
+	P_ALL,			/* All processes. */
+	P_LWPID,		/* An LWP identifier. */
+	P_TASKID,		/* A task identifier. */
+	P_PROJID,		/* A project identifier. */
+	P_POOLID,		/* A pool identifier. */
+	P_JAILID,		/* A zone identifier. */
+	P_CTID,			/* A (process) contract identifier. */
+	P_CPUID,		/* CPU identifier. */
+	P_PSETID		/* Processor set identifier. */
+} vki_idtype_t;			/* The type of id_t we are using. */
+
+struct vki_reaper_status {
+	uint32_t	flags;
+	uint32_t	refs;
+	long		reserved1[15];
+	pid_t		pid_head;
+	int		reserved2[15];
+};
+
+union vki_reaper_info {
+	struct vki_reaper_status	status;
+};
+
+#define VKI_PROC_REAP_ACQUIRE	0x0001
+#define VKI_PROC_REAP_RELEASE	0x0002
+#define VKI_PROC_REAP_STATUS	0x0003
+#define VKI_REAPER_STAT_OWNED	0x00000001
+#define VKI_REAPER_STAT_REALINIT	0x00000002
+
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/
 /*--------------------------------------------------------------------*/

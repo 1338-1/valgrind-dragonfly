@@ -1841,6 +1841,16 @@ POST(sys_ppoll)
 	}
 }
 
+PRE(sys_procctl)
+{
+	PRINT("sys_procctl ( %d, %d, %d, %p )", ARG1, ARG2, ARG3, (void*)ARG4);
+	PRE_REG_READ4(long, "procctl",
+		vki_idtype_t, idtype, vki_id_t, id, int, cmd, void*, data);
+	
+	if (ARG3 == VKI_PROC_REAP_STATUS)
+		PRE_MEM_WRITE("procctl(arg)", ARG4, sizeof(struct vki_reaper_status));
+}
+
 /* ---------------------------------------------------------------------
    kld* wrappers
    ------------------------------------------------------------------ */
@@ -4844,6 +4854,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // netbsd newreboot							   208
    GENXY(__NR_poll,			sys_poll),			// 209
    BSDXY(__NR_ppoll,		sys_ppoll),
+   BSDX_(__NR_procctl,		sys_procctl),		// 536
    //BSDX_(__NR_lkmnosys0,		sys_lkmnosys0),			// 210
    //BSDX_(__NR_lkmnosys1,		sys_lkmnosys1),			// 211
 
