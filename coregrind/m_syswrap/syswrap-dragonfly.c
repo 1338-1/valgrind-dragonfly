@@ -1898,6 +1898,23 @@ POST(sys_kldsym)
    POST_MEM_WRITE( (Addr)&kslp->symsize, sizeof(kslp->symsize) );
 }
 
+PRE(sys_kldfirstmod)
+{
+   PRINT("sys_kldfirstmod ( %ld )", ARG1);
+   PRE_REG_READ1(int, "kldfirstmod", int, fileid);
+}
+
+PRE(sys_kldstat)
+{
+   PRINT("sys_kldstat ( %ld, %p )", ARG1, (void*)ARG2);
+   PRE_REG_READ2(int, "kldstat", int, fileid, struct vki_kld_file_stat*, stat);
+}
+POST(sys_kldstat)
+{
+   if (RES != -1)
+      POST_MEM_WRITE(ARG2, sizeof(struct vki_kld_file_stat));
+}
+
 /* ---------------------------------------------------------------------
    aio_* wrappers
    ------------------------------------------------------------------ */
@@ -3135,6 +3152,24 @@ POST(sys_rtprio_thread)
 }
 
 /* ---------------------------------------------------------------------
+   swap* wrappers
+   ------------------------------------------------------------------ */
+
+PRE(sys_swapon)
+{
+   PRINT("sys_swapon ( %s )", ARG1);
+   PRE_REG_READ1(int, "swapon", const char*, special);
+   PRE_MEM_RASCIIZ("swapon(special)", ARG1);
+}
+
+PRE(sys_swapoff)
+{
+   PRINT("sys_swapoff ( %s )", ARG1);
+   PRE_REG_READ1(int, "swapoff", const char*, special);
+   PRE_MEM_RASCIIZ("swapoff(special)", ARG1);
+}
+
+/* ---------------------------------------------------------------------
    sig* wrappers
    ------------------------------------------------------------------ */
 
@@ -3443,12 +3478,23 @@ PRE(sys_fchflags)
    PRE_REG_READ2(long, "fchflags", unsigned int, fildes, vki_int32_t, flags);
 }
 
+PRE(sys_modnext)
+{
+   PRINT("sys_modnext ( %d )", ARG1);
+   PRE_REG_READ1(long, "modnext", int, modid);
+}
 
 PRE(sys_modfind)
 {
    PRINT("sys_modfind ( %#lx )",ARG1);
    PRE_REG_READ1(long, "modfind", char *, modname);
    PRE_MEM_RASCIIZ( "modfind(modname)", ARG1 );
+}
+
+PRE(sys_modfnext)
+{
+   PRINT("sys_modfnext ( %d )", ARG1);
+   PRE_REG_READ1(long, "modfnext", int, modid);
 }
 
 PRE(sys_modstat)
@@ -4692,7 +4738,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENXY(__NR_setitimer,		sys_setitimer),			// 83
 
    // 4.3 wait								   84
-// BSDX_(__NR_swapon,			sys_swapon),			// 85
+   BSDX_(__NR_swapon,			sys_swapon),			// 85
+   BSDX_(__NR_swapoff,			sys_swapoff),			// 85
    GENXY(__NR_getitimer,		sys_getitimer),			// 86
    // 4.3 gethostname							   87
 
@@ -4968,9 +5015,9 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_fhopen,			sys_fhopen),			// 298
    BSDXY(__NR_fhstat,			sys_fhstat),			// 299
 
-// BSDX_(__NR_modnext,			sys_modnext),			// 300
+   BSDX_(__NR_modnext,			sys_modnext),			// 300
    BSDXY(__NR_modstat,			sys_modstat),			// 301
-// BSDX_(__NR_modfnext,			sys_modfnext),			// 302
+   BSDX_(__NR_modfnext,			sys_modfnext),			// 302
    BSDX_(__NR_modfind,			sys_modfind),			// 303
 
    BSDX_(__NR_kldload,			sys_kldload),			// 304
@@ -4978,8 +5025,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_kldfind,			sys_kldfind),			// 306
    BSDX_(__NR_kldnext,			sys_kldnext),			// 307
 
-// BSDXY(__NR_kldstat,			sys_kldstat),			// 308
-// BSDX_(__NR_kldfirstmod,		sys_kldfirstmod),		// 309
+   BSDXY(__NR_kldstat,			sys_kldstat),			// 308
+   BSDX_(__NR_kldfirstmod,		sys_kldfirstmod),		// 309
    GENX_(__NR_getsid,			sys_getsid),			// 310
    BSDX_(__NR_setresuid,		sys_setresuid),			// 311
 

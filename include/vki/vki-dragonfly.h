@@ -240,6 +240,19 @@ typedef __vki_fd_set		vki_fd_set;
 #define vki_aiocb aiocb
 
 //----------------------------------------------------------------------
+// sys/linker.h
+//----------------------------------------------------------------------
+
+struct vki_kld_file_stat {
+    int		version;	/* set to sizeof(linker_file_stat) */
+    char    name[MAXPATHLEN];
+    int		refs;
+    int		id;
+    vki_caddr_t	address;	/* load address */
+    size_t	size;			/* size in bytes */
+};
+
+//----------------------------------------------------------------------
 // Now the rest of the arch-specific stuff
 //----------------------------------------------------------------------
 
