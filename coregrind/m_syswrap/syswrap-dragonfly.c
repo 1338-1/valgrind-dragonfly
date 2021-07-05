@@ -1116,6 +1116,14 @@ POST(sys_socketpair)
                                          ARG1,ARG2,ARG3,ARG4);
 }
 
+PRE(sys_ktrace)
+{
+   PRINT("sys_ktrace ( %s, %d, %d, %d )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(int, "ktrace",
+   		const char*, tracefile, int, ops, int, trpoints, int, pid);
+   PRE_MEM_RASCIIZ("ktrace(tracefile)", ARG1);
+}
+
 /* ---------------------------------------------------------------------
    *mount wrappers
    ------------------------------------------------------------------ */
@@ -1402,11 +1410,45 @@ POST(sys_fstat)
    POST_MEM_WRITE( ARG2, sizeof(struct vki_stat) );
 }
 
+PRE(sys_nfssvc)
+{
+   PRINT("sys_nfssvc ( %d, %p )", ARG1, (void*)ARG2);
+   PRE_REG_READ2(int, "nfssvc", int, flags, void*, argstructp);
+}
+
+PRE(sys_statvfs)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_statvfs ( %#lx(%s), %#lx )", ARG1, (HChar *) ARG1, ARG2);
+   PRE_REG_READ2(long, "statvfs", const char*, path,
+                 struct vki_statvfs*, buf);
+   PRE_MEM_RASCIIZ("statvfs(path)", ARG1);
+   PRE_MEM_WRITE("statvfs(buf)", ARG2, sizeof(struct vki_statvfs));
+}
+
+PRE(sys_fstatvfs)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_fstatvfs ( %ld, %#lx )", SARG1, ARG2);
+   PRE_REG_READ2(long, "fstatvfs", int, fd, struct vki_statvfs*, buf);
+   PRE_MEM_WRITE("fstatvfs(buf)", ARG2, sizeof(struct vki_statvfs));
+
+   if (!ML_(fd_allowed)(ARG1, "fstatvfs", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
+}
+
 PRE(sys_pathconf)
 {
    PRINT("sys_pathconf ( %#lx(%s), %ld )",ARG1,(char *)ARG1,ARG2);
    PRE_REG_READ2(long, "pathconf", char *, file_name, int, name);
    PRE_MEM_RASCIIZ( "pathconf(file_name)", ARG1 );
+}
+
+PRE(sys_lpathconf)
+{
+   PRINT("sys_lpathconf ( %#lx(%s), %ld )",ARG1,(char *)ARG1,ARG2);
+   PRE_REG_READ2(long, "lpathconf", char *, file_name, int, name);
+   PRE_MEM_RASCIIZ( "lpathconf(file_name)", ARG1 );
 }
 
 PRE(sys_fpathconf)
@@ -1581,6 +1623,26 @@ PRE(sys_futimens)
    PRE_REG_READ2(long, "futimes", int, fd, const struct timespec*, times);
    if (ARG2 != 0)
       PRE_MEM_READ( "futimens(times)", ARG2, sizeof(struct vki_timespec) * 2);
+}
+
+PRE(sys_utimensat)
+{
+   Int fd = (Int) ARG1;
+
+   PRINT("sys_utimensat ( %d, %#lx(%s), %#lx, %ld )",
+         fd, ARG2, (HChar *) ARG2, ARG3, SARG4);
+   PRE_REG_READ4(long, "utimensat", int, fd, const char*, path,
+                 const struct vki_timespec*, times, int, flag);
+   if (ARG2)
+      PRE_MEM_RASCIIZ("utimensat(path)", ARG2);
+   if (ARG3)
+      PRE_MEM_READ("utimensat(times)", ARG3, 2 * sizeof(struct vki_timespec));
+
+   if (fd != VKI_AT_FDCWD
+       && ML_(safe_to_deref)((void *) ARG2, 1)
+       && ((HChar *) ARG2)[0] != '/'
+       && !ML_(fd_allowed)(fd, "utimensat", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
 }
 
 PRE(sys_utrace)
@@ -2709,6 +2771,21 @@ POST(sys_pipe2)
    }
 }
 
+PRE(sys_wait6)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_wait6 ( %d, %d, %p, %d, %p, %p )", ARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
+   PRE_REG_READ6(long, "wait6", 
+                 vki_idtype_t, idtype, vki_id_t, id, int*, status, int, options,
+				 struct vki___wrusage*, wrusage, vki_siginfo_t*, infop);
+   if (ARG2 != (Addr)NULL)
+      PRE_MEM_WRITE( "wait6(status)", ARG3, sizeof(int) );
+   if (ARG4 != (Addr)NULL)
+      PRE_MEM_WRITE( "wait6(__wrusage)", ARG5, sizeof(struct vki___wrusage) );
+   if (ARG6 != (Addr)NULL)
+      PRE_MEM_WRITE( "wait6(infop)", ARG6, sizeof(vki_siginfo_t) );
+}
+
 #if 0
 PRE(sys_quotactl)
 {
@@ -3522,10 +3599,26 @@ PRE(sys_chflags)
    PRE_MEM_RASCIIZ( "chflags(path)", ARG1 );
 }
 
+PRE(sys_lchflags)
+{
+   PRINT("sys_lchflags ( %#lx(%s), 0x%lx )", ARG1,(char *)ARG1,ARG2);
+   PRE_REG_READ2(long, "chown",
+                 const char *, path, vki_int32_t, flags);
+   PRE_MEM_RASCIIZ( "lchflags(path)", ARG1 );
+}
+
 PRE(sys_fchflags)
 {
    PRINT("sys_fchflags ( %ld, %ld )", ARG1,ARG2);
    PRE_REG_READ2(long, "fchflags", unsigned int, fildes, vki_int32_t, flags);
+}
+
+PRE(sys_chflagsat)
+{
+   PRINT("sys_chflagsat ( %ld, %s, %lu, %d )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "chflagsat",
+                 int, fd, const char*, path, unsigned long, flags, int, atflag);
+   PRE_MEM_RASCIIZ("chflagsat(path)", ARG1);
 }
 
 PRE(sys_modnext)
@@ -4689,6 +4782,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENXY(__NR_open,			sys_open),			// 5
    GENXY(__NR_close,			sys_close),			// 6
    GENXY(__NR_wait4,			sys_wait4),			// 7
+   BSDX_(__NR_wait6,			sys_wait6),
 
    // 4.3 creat								   8
    GENX_(__NR_link,			sys_link),			// 9
@@ -4725,7 +4819,9 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_getsockname,		sys_getsockname),		// 32
    GENX_(__NR_access,			sys_access),			// 33
    BSDX_(__NR_chflags,			sys_chflags),			// 34
+   BSDX_(__NR_lchflags,			sys_lchflags),			// 34
    BSDX_(__NR_fchflags,			sys_fchflags),			// 35
+   BSDX_(__NR_chflagsat,		sys_chflagsat),
 
    GENX_(__NR_sync,			sys_sync),			// 36
    GENX_(__NR_kill,			sys_kill),			// 37
@@ -4738,7 +4834,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_getegid,			sys_getegid),			// 43
 
    // GENX_(__NR_profil,		sys_profil),			// 44
-// BSDX_(__NR_ktrace,			sys_ktrace),			// 45
+   BSDX_(__NR_ktrace,			sys_ktrace),			// 45
    // 4.3 sigaction							   46
    GENX_(__NR_getgid,			sys_getgid),			// 47
 
@@ -4877,7 +4973,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // bsd/os sem_wakeup							   152
    // bsd/os asyncdaemon						   153
    // nosys								   154
-   // BSDXY(__NR_nfssvc,		sys_nfssvc),			// 155
+   BSDX_(__NR_nfssvc,		sys_nfssvc),			// 155
 
    // 4.3 getdirentries							   156
    GENXY(__NR_statfs,			sys_statfs),			// 157
@@ -4926,8 +5022,10 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_stat,			sys_stat),			// 188
    BSDXY(__NR_fstat,			sys_fstat),			// 189
    BSDXY(__NR_lstat,			sys_lstat),			// 190
+   BSDX_(__NR_statvfs,			sys_statvfs),
+   BSDX_(__NR_fstatvfs,			sys_fstatvfs),
    BSDX_(__NR_pathconf,			sys_pathconf),			// 191
-
+   BSDX_(__NR_lpathconf,		sys_lpathconf),
    BSDX_(__NR_fpathconf,		sys_fpathconf),			// 192
    // nosys								   193
    GENXY(__NR_getrlimit,		sys_getrlimit),			// 194
@@ -5335,6 +5433,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_pipe2,			sys_pipe2),			// 542
    BSDX_(__NR___realpath,		sys_realpath),		// 551
    BSDX_(__NR_futimens,			sys_futimens),		// 540
+   BSDX_(__NR_utimensat,		sys_utimensat),
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
 

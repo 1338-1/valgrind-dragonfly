@@ -420,6 +420,49 @@ struct vki_stat {
 	vki_int64_t	st_qspare2;
 };
 
+//----------------------------------------------------------------------
+// From sys/uuid.h
+//----------------------------------------------------------------------
+
+struct vki_uuid {
+	vki_uint32_t	time_low;
+	vki_uint16_t	time_mid;
+	vki_uint16_t	time_hi_and_version;
+	vki_uint8_t	clock_seq_hi_and_reserved;
+	vki_uint8_t	clock_seq_low;
+	vki_uint8_t	node[6];
+};
+
+#define vki_uuid_t struct vki_uuid
+
+//----------------------------------------------------------------------
+// From sys/statvfs.h
+//----------------------------------------------------------------------
+
+struct vki_statvfs {
+	unsigned long	f_bsize;	/* file system block size */
+	unsigned long	f_frsize;	/* fundamental file system block size */
+	vki_fsblkcnt_t	f_blocks;	/* total number of blocks on fs */
+	vki_fsblkcnt_t	f_bfree;	/* total number of free blocks */
+	vki_fsblkcnt_t	f_bavail;	/* total number of available blocks */
+	vki_fsfilcnt_t	f_files;	/* total number of file serial num */
+	vki_fsfilcnt_t	f_ffree;	/* total number of free file ser num */
+	vki_fsfilcnt_t	f_favail;	/* total number of avail file ser num */
+	unsigned long	f_fsid;		/* file system ID */
+	unsigned long	f_flag;		/* bit mask of f_flag values */
+	unsigned long	f_namemax;	/* maximum filename length */
+	vki_uid_t		f_owner;	/* user that mounted the filesystem */
+	unsigned int	f_type;		/* filesystem type */
+
+	__uint64_t  	f_syncreads;	/* count of sync reads since mount */
+	__uint64_t  	f_syncwrites;	/* count of sync writes since mount */
+
+	__uint64_t  	f_asyncreads;	/* count of async reads since mount */
+	__uint64_t  	f_asyncwrites;	/* count of async writes since mount */
+
+	vki_uuid_t		f_fsid_uuid;
+	vki_uuid_t		f_uid_uuid;
+};
 
 //----------------------------------------------------------------------
 // From linux-2.6.8.1/include/linux/sched.h
@@ -1248,6 +1291,11 @@ struct	vki_rusage {
 struct vki_rlimit {
 	vki_rlim_t	rlim_cur;
 	vki_rlim_t	rlim_max;
+};
+
+struct vki___wrusage {
+	struct vki_rusage   wru_self;
+	struct vki_rusage   wru_children;
 };
 
 #define VKI_RLIMIT_DATA		2	/* max data size */
@@ -2092,20 +2140,6 @@ struct vki_acl_entry {
 struct vki_acl {
 	int		acl_cnt;
 	struct vki_acl_entry acl_entry[VKI_ACL_MAX_ENTRIES];
-};
-
-
-//----------------------------------------------------------------------
-// From sys/uuid.h
-//----------------------------------------------------------------------
-
-struct vki_uuid {
-	vki_uint32_t	time_low;
-	vki_uint16_t	time_mid;
-	vki_uint16_t	time_hi_and_version;
-	vki_uint8_t	clock_seq_hi_and_reserved;
-	vki_uint8_t	clock_seq_low;
-	vki_uint8_t	node[6];
 };
 
 //----------------------------------------------------------------------
