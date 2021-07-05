@@ -1055,8 +1055,13 @@ SysRes VG_(do_syscall) ( UWord sysno, RegWord a1, RegWord a2, RegWord a3,
    UWord val;
    UWord val2 = 0;
    UInt err = 0;
-   val = do_syscall_WRK(sysno, a1, a2, a3, a4, a5,
-                        a6, a7, a8, &err, &val2);
+   if (sysno == __NR___sysctl) {
+      val = do_syscall_WRK(sysno, a1, a2, a3, a4, a5, a6, a7, a8, &err, &val2);
+   }
+   else {
+      val = do_syscall_WRK(__NR___syscall, sysno, a1, a2, a3, a4, a5,
+                        a6, a7, &err, &val2);
+   }
    return VG_(mk_SysRes_amd64_dragonfly)( val, val2, (err & 1) != 0 ? True : False);
 
 #  elif defined(VGP_ppc32_linux)

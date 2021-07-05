@@ -1,0 +1,56 @@
+diff --git a/sys/kern/kern_descrip.c b/sys/kern/kern_descrip.c
+index 7e5e588443..493c8166f8 100644
+--- a/sys/kern/kern_descrip.c
++++ b/sys/kern/kern_descrip.c
+@@ -881,6 +881,16 @@ kern_fcntl(int fd, int cmd, union fcntl_dat *dat, struct ucred *cred)
+ 		error = VOP_ADVLOCK(vp, (caddr_t)p->p_leader, F_GETLK,
+ 				    &dat->fc_flock, F_POSIX);
+ 		break;
++
++	case F_GETPATH:
++		if (fp->f_type != DTYPE_VNODE) {
++			error = EBADF;
++			break;
++		}
++		error = cache_fullpath(p, &fp->f_nchandle, NULL, &dat->fc_path.ptr,
++			&dat->fc_path.buf, 1);
++		break;
++
+ 	default:
+ 		error = EINVAL;
+ 		break;
+@@ -948,6 +958,11 @@ sys_fcntl(struct sysmsg *sysmsg, const struct fcntl_args *uap)
+ 			error = copyout(&dat.fc_flock, (caddr_t)uap->arg,
+ 			    sizeof(struct flock));
+ 			break;
++		case F_GETPATH:
++			error = copyout(dat.fc_path.ptr, (caddr_t)uap->arg,
++				strlen(dat.fc_path.ptr) + 1);
++			kfree(dat.fc_path.buf, M_TEMP);
++			break;
+ 		}
+ 	}
+ 
+diff --git a/sys/sys/fcntl.h b/sys/sys/fcntl.h
+index aa78973843..1fe4277b63 100644
+--- a/sys/sys/fcntl.h
++++ b/sys/sys/fcntl.h
+@@ -207,6 +207,7 @@
+ #endif
+ #if __BSD_VISIBLE
+ #define	F_DUP2FD_CLOEXEC 18		/* Like F_DUP2FD with FD_CLOEXEC set */
++#define	F_GETPATH	19		/* retrieve full path to file associated with fd */
+ #endif
+ 
+ /* file descriptor flags (F_GETFD, F_SETFD) */
+@@ -243,6 +244,10 @@ union fcntl_dat {
+ 	int		fc_flags;	/* F_GETFL/F_SETFL */
+ 	int		fc_owner;	/* F_GETOWN/F_SETOWN */
+ 	struct flock	fc_flock;	/* F_GETLK/F_SETLK */
++	struct {
++		char	*ptr;
++		char	*buf;
++	} fc_path; 			/* F_GETPATH */
+ };
+ #endif /* _KERNEL */
+ 

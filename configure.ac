@@ -1235,6 +1235,19 @@ AM_CONDITIONAL(VGCONF_PLATVARIANT_IS_ANDROID,
 # Checking for various library functions and other definitions
 #----------------------------------------------------------------------------
 
+# Check for F_GETPATH
+
+AC_MSG_CHECKING([for F_GETPATH])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <sys/fcntl.h>
+]], [[
+  int a = F_GETPATH;
+]])], [
+AC_MSG_RESULT([yes])
+], [
+AC_MSG_ERROR([Valgrind requires fcntl(F_GETPATH), apply the bundled kernel patch])
+])
+
 # Check for AT_FDCWD
 
 AC_MSG_CHECKING([for AT_FDCWD])

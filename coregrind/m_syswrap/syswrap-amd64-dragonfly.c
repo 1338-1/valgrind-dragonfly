@@ -118,6 +118,8 @@ void VG_(cleanup_thread) ( ThreadArchState *arch )
 #define PRE(name)       DEFN_PRE_TEMPLATE(dragonfly, name)
 #define POST(name)      DEFN_POST_TEMPLATE(dragonfly, name)
 
+#if 0 
+
 PRE(sys_thr_new)
 {
    static const Bool debug = False;
@@ -244,6 +246,8 @@ fail:
    /* "Complete" the syscall so that the wrapper doesn't call the kernel again. */
    SET_STATUS_from_SysRes(res);
 }
+
+#endif
 
 PRE(sys_rfork)
 {
@@ -515,12 +519,11 @@ PRE(sys_mmap)
    SET_STATUS_from_SysRes(r);
 }
 
-/* Dragonfly-7 introduces a "regular" version of mmap etc. */
 PRE(sys_mmap7)
 {
    SysRes r;
 
-   PRINT("sys_mmap ( %#lx, %lu, %ld, %ld, %ld, 0x%lx)",
+   PRINT("sys_mmap7 ( %#lx, %lu, %ld, %ld, %ld, 0x%lx)",
          ARG1, (UWord)ARG2, ARG3, ARG4, ARG5, ARG6 );
    PRE_REG_READ6(long, "mmap",
                  char *, addr, unsigned long, len, int, prot,  int, flags,
@@ -566,6 +569,32 @@ POST(sys_pread)
    POST_MEM_WRITE( ARG2, RES );
 }
 
+PRE(sys_preadv)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_extpreadv ( %ld, %#lx, %lu, %lu, %lu )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(ssize_t, "extpreadv",
+                 int, fd, struct vki_iovec*, iov, int, iovcnt, int, flags,
+				 vki_off_t, offset);
+
+   if (!ML_(fd_allowed)(ARG1, "extpreadv", tid, False))
+      SET_STATUS_Failure( VKI_EBADF );
+   else
+      PRE_MEM_READ("extpreadv(iov)", ARG2, ARG3 * sizeof(struct vki_iovec));
+}
+
+POST(sys_preadv)
+{
+   int i;
+   struct vki_iovec *v = ARG2;
+
+   vg_assert(SUCCESS);
+
+   for (i = 0; i < ARG3; i++)
+		POST_MEM_WRITE(v[i].iov_base, v[i].iov_len);
+}
+
+
 PRE(sys_pread7)
 {
    *flags |= SfMayBlock;
@@ -605,6 +634,25 @@ PRE(sys_pwrite)
    else
       PRE_MEM_READ( "write(buf)", ARG2, ARG3 );
 }
+
+PRE(sys_pwritev)
+{
+   Bool ok;
+   *flags |= SfMayBlock;
+   PRINT("sys_extpwritev ( %ld, %#lx, %lu, %lu, %lu )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(ssize_t, "extpwritev",
+                 int, fd, const struct vki_iovec*, iov, int, iovcnt, int, flags,
+				 vki_off_t, offset);
+   ok = ML_(fd_allowed)(ARG1, "extpwritev", tid, False);
+   if (!ok && ARG1 == 2/*stderr*/
+           && SimHintiS(SimHint_enable_outer, VG_(clo_sim_hints)))
+      ok = True;
+   if (!ok)
+      SET_STATUS_Failure( VKI_EBADF );
+   else
+      PRE_MEM_READ("extpwritev(iov)", ARG2, ARG3 * sizeof(struct vki_iovec));
+}
+
 
 PRE(sys_pwrite7)
 {

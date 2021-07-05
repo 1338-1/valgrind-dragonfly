@@ -103,7 +103,7 @@ static void fill_ehdr(ESZ(Ehdr) *ehdr, Int num_phdrs)
    ehdr->e_ehsize = sizeof(ESZ(Ehdr));
    ehdr->e_phentsize = sizeof(ESZ(Phdr));
    ehdr->e_phnum = num_phdrs;
-   ehdr->e_shentsize = 0;
+   ehdr->e_shentsize = sizeof(ESZ(Shdr));
    ehdr->e_shnum = 0;
    ehdr->e_shstrndx = 0;
 
@@ -444,6 +444,7 @@ static void fill_prstatus(const ThreadState *tst,
 
 #elif defined(VGP_amd64_dragonfly)
    regs->rflags = LibVEX_GuestAMD64_get_rflags( &((ThreadArchState*)arch)->vex );
+   regs->xflags = 0;
    regs->rsp    = arch->vex.guest_RSP;
    regs->rip    = arch->vex.guest_RIP;
    regs->rbx    = arch->vex.guest_RBX;

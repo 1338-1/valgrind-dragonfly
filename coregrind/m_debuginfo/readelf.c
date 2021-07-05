@@ -1117,6 +1117,8 @@ void read_elf_symtab__ppc64be_linux(
    VG_(OSetGen_Destroy)( oset );
 }
 
+/* from perf/ */
+#define ELF_NOTE_GNU "GNU"
 
 /*
  * Look for a build-id in an ELF image. The build-id specification
@@ -2004,6 +2006,13 @@ Bool ML_(read_elf_debug_info) ( struct _DebugInfo* di )
 
    /* TOPLEVEL */
 
+   /* le hack */
+   if (di->soname == NULL && di->fsm.filename) {
+      Char *base = VG_(strrchr)(di->fsm.filename, '/');
+	  if (base) {
+	     di->soname = ML_(dinfo_strdup)("di.redi.1", base + 1);
+	  }
+   }
    /* If, after looking at all the program headers, we still didn't 
       find a soname, add a fake one. */
    if (di->soname == NULL) {

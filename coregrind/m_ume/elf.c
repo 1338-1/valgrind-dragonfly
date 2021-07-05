@@ -810,6 +810,8 @@ Int VG_(load_ELF)(Int fd, const HChar* name, /*MOD*/ExeInfo* info)
             try and put it where it asks for, but if that doesn't work,
             just put it anywhere.
       */
+
+#if 0 /* Do a fixed address mapping instead */
       if (interp_addr == 0) {
          mreq.rkind = MAny;
          mreq.start = 0;
@@ -829,6 +831,9 @@ Int VG_(load_ELF)(Int fd, const HChar* name, /*MOD*/ExeInfo* info)
          check_mmap(res, (Addr)interp_addr, interp_size);
          /*NOTREACHED*/
       }
+#else
+      advised = (Addr)0x0000000800401000;
+#endif
 
       (void)mapelf(interp, (ESZ(Addr))advised - interp_addr);
 

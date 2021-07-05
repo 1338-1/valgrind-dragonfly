@@ -2287,7 +2287,7 @@ ML_(generic_PRE_sys_mmap) ( ThreadId tid,
       return VG_(mk_SysRes_Error)( VKI_EINVAL );
    }
 
-   if (!VG_IS_PAGE_ALIGNED(arg1)) {
+   if (arg4 & VKI_MAP_FIXED && !VG_IS_PAGE_ALIGNED(arg1)) {
       /* zap any misaligned addresses. */
       /* SuSV3 says misaligned addresses only cause the MAP_FIXED case
          to fail.   Here, we catch them all. */
@@ -2673,6 +2673,15 @@ PRE(sys_madvise)
                         ARG1, ARG2, SARG3);
    PRE_REG_READ3(long, "madvise",
                  unsigned long, start, vki_size_t, length, int, advice);
+}
+
+PRE(sys_mcontrol)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_mcontrol ( %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %ld, %ld )",
+                        ARG1, ARG2, SARG3, SARG4);
+   PRE_REG_READ4(long, "mcontrol",
+                 unsigned long, start, vki_size_t, length, int, advice, vki_off_t, val);
 }
 
 #if HAVE_MREMAP

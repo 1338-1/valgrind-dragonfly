@@ -60,6 +60,7 @@ DECL_TEMPLATE(dragonfly, sys_chflags);
 DECL_TEMPLATE(dragonfly, sys_fchflags);
 DECL_TEMPLATE(dragonfly, sys_pipe);
 DECL_TEMPLATE(dragonfly, sys_pipe2);
+DECL_TEMPLATE(dragonfly, sys_wait6);
 DECL_TEMPLATE(dragonfly, sys_ktrace);
 DECL_TEMPLATE(dragonfly, sys_getlogin);
 DECL_TEMPLATE(dragonfly, sys_setlogin);
@@ -92,13 +93,17 @@ DECL_TEMPLATE(dragonfly, sys_semsys);
 DECL_TEMPLATE(dragonfly, sys_msgsys);
 DECL_TEMPLATE(dragonfly, sys_shmsys);
 DECL_TEMPLATE(dragonfly, sys_pread);
+DECL_TEMPLATE(dragonfly, sys_preadv);
 DECL_TEMPLATE(dragonfly, sys_pwrite);
+DECL_TEMPLATE(dragonfly, sys_pwritev);
 DECL_TEMPLATE(dragonfly, sys_ntp_adjtime);
 DECL_TEMPLATE(dragonfly, sys_setegid);
 DECL_TEMPLATE(dragonfly, sys_seteuid);
 DECL_TEMPLATE(dragonfly, sys_stat);
 DECL_TEMPLATE(dragonfly, sys_fstat);
 DECL_TEMPLATE(dragonfly, sys_lstat);
+DECL_TEMPLATE(dragonfly, sys_statvfs);
+DECL_TEMPLATE(dragonfly, sys_fstatvfs);
 DECL_TEMPLATE(dragonfly, sys_pathconf);
 DECL_TEMPLATE(dragonfly, sys_fpathconf);
 DECL_TEMPLATE(dragonfly, sys_getdirentries);
@@ -272,6 +277,17 @@ DECL_TEMPLATE(dragonfly, sys_fcntl);
 DECL_TEMPLATE(dragonfly, sys_ioctl);
 DECL_TEMPLATE(dragonfly, sys_mq_open);
 DECL_TEMPLATE(dragonfly, sys_mq_unlink);
+DECL_TEMPLATE(dragonfly, sys_mq_timedsend);
+DECL_TEMPLATE(dragonfly, sys_mq_timedreceive);
+DECL_TEMPLATE(dragonfly, sys_mq_notify);
+DECL_TEMPLATE(dragonfly, sys_mq_getsetattr);
+DECL_TEMPLATE(dragonfly, sys_mq_setattr);
+DECL_TEMPLATE(dragonfly, sys_mq_getattr);
+DECL_TEMPLATE(dragonfly, sys_mq_send);
+DECL_TEMPLATE(dragonfly, sys_mq_receive);
+DECL_TEMPLATE(dragonfly, sys_ppoll);
+DECL_TEMPLATE(dragonfly, sys_procctl);
+
 #endif   // __PRIV_SYSWRAP_DRAGONFLY_H
 
 /*--------------------------------------------------------------------*/

@@ -196,30 +196,18 @@ static void run_a_thread_NORETURN ( Word tidW )
          reallocation.  We need to make sure we don't touch the stack
          between marking it Empty and exiting.  Hence the
          assembler. */
-#if defined(VGP_x86_dragonfly)	/* Dragonfly has args on the stack */
+#if defined(VGP_amd64_dragonfly)
       asm volatile (
          "movl	%1, %0\n"	/* set tst->status = VgTs_Empty */
-         "movl	%2, %%eax\n"    /* set %eax = __NR_thr_exit */
-         "movl	%3, %%ebx\n"    /* set %ebx = tst->os_state.exitcode */
-	 "pushl	%%ebx\n"	/* arg on stack */
-	 "pushl	%%ebx\n"	/* fake return address */
-         "int	$0x80\n"	/* thr_exit(tst->os_state.exitcode) */
-	 "popl	%%ebx\n"	/* fake return address */
-	 "popl	%%ebx\n"	/* arg off stack */
-         : "=m" (tst->status)
-         : "n" (VgTs_Empty), "n" (__NR_thr_exit), "m" (tst->os_state.exitcode)
-         : "eax", "ebx"
-      );
-#elif defined(VGP_amd64_dragonfly)
-      asm volatile (
-         "movl	%1, %0\n"	/* set tst->status = VgTs_Empty */
-         "movq	%2, %%rax\n"    /* set %rax = __NR_thr_exit */
-         "movq	%3, %%rdi\n"    /* set %rdi = tst->os_state.exitcode */
-	 "pushq	%%rdi\n"	/* fake return address */
-         "syscall\n"		/* thr_exit(tst->os_state.exitcode) */
+         "movq	%2, %%rax\n"    /* set %rax = __NR_extexit */
+         "movq	%3, %%rdi\n"    /* set %rdi = EXTEXIT_LWP */
+         "movq	$0, %%rsi\n"    /* set %rsi = 0
+         "movq	$0, %%rdx\n"    /* set %rdx = 0
+	 "pushq	%%rdi\n"	/* fake return address (idk) */
+         "syscall\n"		/* extexit(EXTEXIT_LWP, 0, 0)
 	 "popq	%%rdi\n"	/* fake return address */
          : "=m" (tst->status)
-         : "n" (VgTs_Empty), "n" (__NR_thr_exit), "m" (tst->os_state.exitcode)
+         : "n" (VgTs_Empty), "n" (__NR_extexit), "n" (VKI_EXTEXIT_LWP)
          : "rax", "rdi"
       );
 #else
@@ -381,6 +369,497 @@ SysRes ML_(do_fork) ( ThreadId tid )
 // Combine two 32-bit values into a 64-bit value
 #define LOHI64(lo,hi)   ( (lo) | ((ULong)(hi) << 32) )
 
+PRE(sys_set_tls_area)
+{
+	ThreadState *tst;
+	struct vki_tls_info* info;
+
+	PRINT("sys_set_tls_area (%d, %p, %lu)", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "set_tls_area",
+		int, which, struct vki_tls_info*, info, vki_size_t, size);
+
+	if (ARG2 == 0)
+	{
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	tst = VG_(get_ThreadState)(tid);
+	info = ARG2;
+
+	switch (ARG1)
+	{
+	case 0:
+		tst->arch.vex.guest_FS_CONST = info->base;
+		break;
+	case 1:
+		tst->arch.vex.guest_GS_CONST = info->base;
+		break;
+	default:
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	SET_STATUS_Success(0);
+}
+
+PRE(sys_get_tls_area)
+{
+	ThreadState *tst;
+	struct vki_tls_info* info;
+
+	PRINT("sys_get_tls_area (%d, %p, %lu)", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "get_tls_area",
+		int, which, struct vki_tls_info*, info, vki_size_t, size);
+
+	if (ARG2 == 0)
+	{
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	tst = VG_(get_ThreadState)(tid);
+	info = ARG2;
+
+	switch (ARG1)
+	{
+	case 0:
+		info->base = tst->arch.vex.guest_FS_CONST;
+		info->size = -1;
+		break;
+	case 1:
+		info->base = tst->arch.vex.guest_GS_CONST;
+		info->size = -1;
+		break;
+	default:
+		SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	SET_STATUS_Success(0);
+}
+
+POST(sys_get_tls_area)
+{
+	if (ARG2 && RES == 0)
+		POST_MEM_WRITE(ARG2, sizeof(struct vki_tls_info));
+}
+
+/* ---------------------------------------------------------------------
+   lwp* wrappers
+   ------------------------------------------------------------------ */
+
+PRE(sys_lwp_create)
+{
+	static const Bool debug = False;
+
+	ThreadId     ctid = VG_(alloc_ThreadState)();
+	ThreadState* ptst = VG_(get_ThreadState)(tid);
+	ThreadState* ctst = VG_(get_ThreadState)(ctid);
+	SysRes       res;
+	vki_sigset_t blockall, savedmask;
+	struct vki_lwp_params tp;
+	vki_size_t stksize = 0x1000000; // 16Mb, it better be enough
+	Addr stk;
+
+	PRINT("sys_lwp_create ( %p )", (void*)ARG1);
+	PRE_REG_READ1(int, "lwp_create",
+		struct vki_lwp_params*, params);
+	
+	if (ARG1 == 0) {
+		SET_STATUS_Failure(VKI_EFAULT);
+		return;
+	}
+
+	VG_(memcpy)(&tp, (void*)ARG1, sizeof(struct vki_lwp_params));
+	if (tp.tid1)
+		PRE_MEM_WRITE("lwp_create(params.tid1)", (Addr)tp.tid1, sizeof tp.tid1);
+	if (tp.tid2)
+		PRE_MEM_WRITE("lwp_create(params.tid2)", (Addr)tp.tid2, sizeof tp.tid2);
+
+	VG_(sigfillset)(&blockall);
+	vg_assert(VG_(is_running_thread)(tid));
+	vg_assert(VG_(is_valid_tid)(ctid));
+
+	/* Copy register state. We inherit our parent's guest state. */
+	ctst->arch.vex = ptst->arch.vex;
+	ctst->arch.vex_shadow1 = ptst->arch.vex_shadow1;
+	ctst->arch.vex_shadow2 = ptst->arch.vex_shadow2;
+
+	/* Make thr_new appear to have returned Success(0) in the child. */
+	ctst->arch.vex.guest_RAX = 0;
+	ctst->arch.vex.guest_RDX = 0;
+	LibVEX_GuestAMD64_put_rflag_c(0, &ctst->arch.vex);
+
+	ctst->os_state.parent = tid;
+
+	/* inherit signal mask */
+	ctst->sig_mask = ptst->sig_mask;
+	ctst->tmp_sig_mask = ptst->sig_mask;
+
+	/* Yee, we have to guess */
+	ctst->client_stack_highest_byte = (Addr)tp.stack;
+	ctst->client_stack_szB = stksize;
+	VG_(register_stack)((Addr)tp.stack - stksize, (Addr)tp.stack);
+
+	/* Assume the thr_new will succeed, and tell any tool that wants to
+		know that this thread has come into existence.  If the thr_new
+		fails, we'll send out a ll_exit notification for it at the out:
+		label below, to clean up. */
+	VG_TRACK ( pre_thread_ll_create, tid, ctid );
+
+	/* start the thread with everything blocked */
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &blockall, &savedmask);
+
+	/* Set the client state for scheduler to run libthr's trampoline */
+	ctst->arch.vex.guest_RDI = (Addr)tp.arg;
+	/* XXX: align on 16-byte boundary? */
+	ctst->arch.vex.guest_RSP = (((Addr)tp.stack) & ~(0xffULL)) - 0x8;
+	ctst->arch.vex.guest_RIP = (Addr)tp.func;
+
+	/* But this is for thr_new() to run valgrind's trampoline */
+	tp.func = (void *)ML_(start_thread_NORETURN);
+	tp.arg = &VG_(threads)[ctid];
+
+	/* And valgrind's trampoline on its own stack */
+	stk = ML_(allocstack)(ctid);
+	if (stk == (Addr)NULL) {
+		res = VG_(mk_SysRes_Error)( VKI_ENOMEM );
+		goto fail;
+	}
+	tp.stack = stk;
+
+	/* Create the new thread */
+	res = VG_(do_syscall1)(__NR_lwp_create, (UWord)&tp);
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &savedmask, NULL);
+
+fail:
+	if (sr_isError(res)) {
+		/* lwp_create failed */
+		VG_(cleanup_thread)(&ctst->arch);
+		ctst->status = VgTs_Empty;
+		/* oops.  Better tell the tool the thread exited in a hurry :-) */
+		VG_TRACK( pre_thread_ll_exit, ctid );
+	} else {
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid1, sizeof tp.tid1);
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid2, sizeof tp.tid2);
+
+		/* Thread creation was successful; let the child have the chance
+			to run */
+		*flags |= SfYieldAfter;
+	}
+
+	/* "Complete" the syscall so that the wrapper doesn't call the kernel again. */
+	SET_STATUS_from_SysRes(res);
+}
+
+PRE(sys_lwp_create2)
+{
+	static const Bool debug = False;
+
+	ThreadId     ctid = VG_(alloc_ThreadState)();
+	ThreadState* ptst = VG_(get_ThreadState)(tid);
+	ThreadState* ctst = VG_(get_ThreadState)(ctid);
+	SysRes       res;
+	vki_sigset_t blockall, savedmask;
+	struct vki_lwp_params tp;
+	vki_size_t stksize = 0x1000000; // 16Mb, it better be enough
+	Addr stk;
+
+	PRINT("sys_lwp_create2 ( %p, %p )", (void*)ARG1, (void*)ARG2);
+	PRE_REG_READ2(int, "lwp_create2",
+		struct vki_lwp_params*, params, const vki_cpumask_t*, mask);
+	
+	if (ARG1 == 0) {
+		SET_STATUS_Failure(VKI_EFAULT);
+		return;
+	}
+
+	VG_(memcpy)(&tp, (void*)ARG1, sizeof(struct vki_lwp_params));
+	if (tp.tid1)
+		PRE_MEM_WRITE("lwp_create2(params.tid1)", (Addr)tp.tid1, sizeof tp.tid1);
+	if (tp.tid2)
+		PRE_MEM_WRITE("lwp_create2(params.tid2)", (Addr)tp.tid2, sizeof tp.tid2);
+
+	VG_(sigfillset)(&blockall);
+	vg_assert(VG_(is_running_thread)(tid));
+	vg_assert(VG_(is_valid_tid)(ctid));
+
+	/* Copy register state. We inherit our parent's guest state. */
+	ctst->arch.vex = ptst->arch.vex;
+	ctst->arch.vex_shadow1 = ptst->arch.vex_shadow1;
+	ctst->arch.vex_shadow2 = ptst->arch.vex_shadow2;
+
+	/* Make thr_new appear to have returned Success(0) in the child. */
+	ctst->arch.vex.guest_RAX = 0;
+	ctst->arch.vex.guest_RDX = 0;
+	LibVEX_GuestAMD64_put_rflag_c(0, &ctst->arch.vex);
+
+	ctst->os_state.parent = tid;
+
+	/* inherit signal mask */
+	ctst->sig_mask = ptst->sig_mask;
+	ctst->tmp_sig_mask = ptst->sig_mask;
+
+	/* Yee, we have to guess */
+	ctst->client_stack_highest_byte = (Addr)tp.stack;
+	ctst->client_stack_szB = stksize;
+	VG_(register_stack)((Addr)tp.stack - stksize, (Addr)tp.stack);
+
+	/* Assume the thr_new will succeed, and tell any tool that wants to
+		know that this thread has come into existence.  If the thr_new
+		fails, we'll send out a ll_exit notification for it at the out:
+		label below, to clean up. */
+	VG_TRACK ( pre_thread_ll_create, tid, ctid );
+
+	/* start the thread with everything blocked */
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &blockall, &savedmask);
+
+	/* Set the client state for scheduler to run libthr's trampoline */
+	ctst->arch.vex.guest_RDI = (Addr)tp.arg;
+	/* XXX: align on 16-byte boundary? */
+	ctst->arch.vex.guest_RSP = (((Addr)tp.stack) & ~(0xffULL)) - 0x8;
+	ctst->arch.vex.guest_RIP = (Addr)tp.func;
+
+	/* But this is for thr_new() to run valgrind's trampoline */
+	tp.func = (void *)ML_(start_thread_NORETURN);
+	tp.arg = &VG_(threads)[ctid];
+
+	/* And valgrind's trampoline on its own stack */
+	stk = ML_(allocstack)(ctid);
+	if (stk == (Addr)NULL) {
+		res = VG_(mk_SysRes_Error)( VKI_ENOMEM );
+		goto fail;
+	}
+	tp.stack = stk;
+
+	/* Create the new thread */
+	res = VG_(do_syscall2)(__NR_lwp_create, (UWord)&tp, ARG2);
+	VG_(sigprocmask)(VKI_SIG_SETMASK, &savedmask, NULL);
+
+fail:
+	if (sr_isError(res)) {
+		/* lwp_create failed */
+		VG_(cleanup_thread)(&ctst->arch);
+		ctst->status = VgTs_Empty;
+		/* oops.  Better tell the tool the thread exited in a hurry :-) */
+		VG_TRACK( pre_thread_ll_exit, ctid );
+	} else {
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid1, sizeof tp.tid1);
+		if (tp.tid1)
+			POST_MEM_WRITE(tp.tid2, sizeof tp.tid2);
+
+		/* Thread creation was successful; let the child have the chance
+			to run */
+		*flags |= SfYieldAfter;
+	}
+
+	/* "Complete" the syscall so that the wrapper doesn't call the kernel again. */
+	SET_STATUS_from_SysRes(res);
+}
+
+PRE(sys_lwp_gettid)
+{
+	PRINT("sys_lwp_gettid ()");
+	PRE_REG_READ0(vki_lwpid_t, "lwp_gettid");
+}
+
+PRE(sys_lwp_kill)
+{
+	PRINT("sys_lwp_kill (%d, %d, %d)", ARG1, ARG2, ARG3);
+	PRE_REG_READ3(int, "lwp_kill",
+		vki_pid_t, pid, vki_lwpid_t, tid, int, sig);
+
+	*flags = SfPollAfter;
+	
+	if (ARG3 == VKI_SIGKILL) {
+		if (ML_(do_sigkill)(ARG2, ARG1))
+			SET_STATUS_Success(0);
+		else
+			SET_STATUS_Failure(VKI_EINVAL);
+		return;
+	}
+
+	*flags = SfMayBlock;
+}
+
+PRE(sys_lwp_rtprio)
+{
+	PRINT("sys_lwp_rtprio (%d, %d, %d, %p)", ARG1, ARG2, ARG3, (void*)ARG4);
+	PRE_REG_READ4(int, "lwp_rtprio",
+		int, function, vki_pid_t, pid, vki_lwpid_t, tid,
+		struct vki_rtprio*, rtp);
+}
+
+POST(sys_lwp_rtprio)
+{
+	if (ARG1 == VKI_RTP_LOOKUP && RES == 0)
+		POST_MEM_WRITE(ARG4, sizeof(struct vki_rtprio));
+}
+
+PRE(sys_lwp_setaffinity)
+{
+	PRINT("sys_lwp_setaffinity ( %d, %d %p )", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(int, "lwp_setaffinity",
+		vki_pid_t, pid, vki_lwpid_t, tid, const vki_cpumask_t*, mask);
+}
+
+PRE(sys_lwp_getaffinity)
+{
+	PRINT("sys_lwp_getaffinity ( %d, %d %p )", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(int, "lwp_getaffinity",
+		vki_pid_t, pid, vki_lwpid_t, tid, vki_cpumask_t*, mask);
+}
+
+POST(sys_lwp_getaffinity)
+{
+	if (RES == 0)
+		POST_MEM_WRITE(ARG3, sizeof(vki_cpumask_t));
+}
+
+PRE(sys_lwp_getname)
+{
+	PRINT("sys_lwp_getname ( %d, %p, %zu )", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "lwp_getname",
+		vki_lwpid_t, tid, char*, name, vki_size_t, len);
+}
+
+POST(sys_lwp_getname)
+{
+	if (RES == 0)
+		POST_MEM_WRITE(ARG2, ARG3);
+}
+
+PRE(sys_lwp_setname)
+{
+	PRINT("sys_lwp_setname ( %d, %p )", ARG1, (void*)ARG2);
+	PRE_REG_READ2(int, "lwp_setname",
+		vki_lwpid_t, tid, const char*, name);
+}
+
+/* ---------------------------------------------------------------------
+   lwp* wrappers END
+   ------------------------------------------------------------------ */
+
+/* ---------------------------------------------------------------------
+   varsym* wrappers
+   ------------------------------------------------------------------ */
+
+
+PRE(sys_varsym_get)
+{
+	PRINT("sys_varsym_get ( %d, %p, %p, %d )", ARG1, (void*)ARG2, (void*)ARG3,
+		ARG4);
+	PRE_REG_READ4(int, "varsym_get",
+		int, mask, const char*, wild, char*, buf, int, bufsize);
+}
+
+POST(sys_varsym_get)
+{
+	if (RES != -1) // bug in kern_varsym.c, can revert to 0 when fixed
+		POST_MEM_WRITE(ARG3, ARG4);
+}
+
+PRE(sys_varsym_set)
+{
+	PRINT("sys_varsym_set ( %d, %p, %p )", ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "varsym_set",
+		int, level, const char*, name, const char*, data);
+}
+
+PRE(sys_varsym_list)
+{
+	PRINT("sys_varsym_list ( %d, %p, %p, %d )", ARG1, (void*)ARG2, (void*)ARG3,
+		ARG4);
+	PRE_REG_READ4(int, "varsym_list",
+		int, level, char*, buf, int, maxsize, int*, marker);
+}
+
+POST(sys_varsym_list)
+{
+	char *p = ARG2;
+	int *marker = ARG4;
+	int nbytes = 0;
+
+	if (p && marker)
+	{
+		while (marker--)
+		{
+			while (*p)
+				++p, ++nbytes;
+			++p;
+			++nbytes;
+		}
+
+		POST_MEM_WRITE(ARG2, nbytes);
+	}
+}
+
+/* ---------------------------------------------------------------------
+   varsym* wrappers END
+   ------------------------------------------------------------------ */
+
+PRE(sys_extexit)
+{
+	ThreadId t;
+	ThreadState *tst;
+
+	PRINT("sys_extexit (%d, %d, %p)", ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(void, "extexit",
+		int, how, int, status, void*, addr);
+
+	if (ARG1 | VKI_EXTEXIT_SETINT && ARG3)
+		PRE_MEM_READ("extexit(addr)", ARG3, sizeof(int));
+
+	if (ARG1 | VKI_EXTEXIT_LWP)
+	{
+		tst = VG_(get_ThreadState)(tid);
+		tst->exitreason = VgSrc_ExitThread;
+		tst->os_state.exitcode = ARG1;
+	}
+	else if (ARG1 | VKI_EXTEXIT_PROC)
+	{
+		for (t = 1; t < VG_N_THREADS; ++t)
+		{
+			if (VG_(threads)[t].status == VgTs_Empty)
+				continue;
+
+			VG_(threads)[t].exitreason = VgSrc_ExitThread;
+			VG_(threads)[t].os_state.exitcode = ARG2;
+
+			if (t != tid)
+				VG_(get_thread_out_of_syscall)(t);
+		}
+	}
+
+	SET_STATUS_Success(0);
+}
+
+PRE(sys_realpath)
+{
+	PRINT("sys_realpath (%p, %p, %lu)", (void*)ARG1, (void*)ARG2, ARG3);
+	PRE_REG_READ3(int, "realpath",
+		const char*, pathname, char*, path, unsigned long, len);
+}
+
+PRE(sys_umtx_sleep)
+{
+	PRINT("sys_umtx_sleep (%p, %d, %d)", (void*)ARG1, ARG2, ARG3);
+	PRE_REG_READ3(int, "umtx_sleep",
+		volatile const int*, ptr, int, value, int, timeout);
+	*flags |= SfMayBlock;
+}
+
+PRE(sys_umtx_wakeup)
+{
+	PRINT("sys_umtx_wakeup (%p, %d)", (void*)ARG1, ARG2);
+	PRE_REG_READ2(int, "umtx_wakeup",
+		volatile const int*, ptr, int, count);
+}
+
 PRE(sys_fork)
 {
    PRINT("sys_fork ()");
@@ -465,6 +944,15 @@ PRE(sys_connect)
    ML_(generic_PRE_sys_connect)(tid, ARG1,ARG2,ARG3);
 }
 
+PRE(sys_extconnect)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_extconnect ( %ld, %#lx, %ld )",ARG1,ARG2,ARG3);
+   PRE_REG_READ4(long, "extconnect",
+                 int, sockfd, int, flags, struct sockaddr *, serv_addr, int, addrlen);
+   ML_(generic_PRE_sys_connect)(tid, ARG1,ARG3,ARG4);
+}
+
 PRE(sys_accept)
 {
    *flags |= SfMayBlock;
@@ -479,6 +967,40 @@ POST(sys_accept)
    vg_assert(SUCCESS);
    r = ML_(generic_POST_sys_accept)(tid, VG_(mk_SysRes_Success)(RES),
                                          ARG1,ARG2,ARG3);
+   SET_STATUS_from_SysRes(r);
+}
+
+PRE(sys_accept4)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_accept4 ( %ld, %#lx, %ld, %d )",ARG1,ARG2,ARG3,ARG4);
+   PRE_REG_READ4(long, "accept4",
+                 int, s, struct sockaddr *, addr, int, *addrlen, int, flags);
+   ML_(generic_PRE_sys_accept)(tid, ARG1,ARG2,ARG3);
+}
+POST(sys_accept4)
+{
+   SysRes r;
+   vg_assert(SUCCESS);
+   r = ML_(generic_POST_sys_accept)(tid, VG_(mk_SysRes_Success)(RES),
+                                         ARG1,ARG2,ARG3);
+   SET_STATUS_from_SysRes(r);
+}
+
+PRE(sys_extaccept)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_extaccept ( %ld, %d, %#lx, %ld )",ARG1,ARG2,ARG3,ARG4);
+   PRE_REG_READ4(long, "extaccept",
+                 int, s, int, flags, struct sockaddr *, addr, int, *addrlen);
+   ML_(generic_PRE_sys_accept)(tid, ARG1,ARG3,ARG4);
+}
+POST(sys_extaccept)
+{
+   SysRes r;
+   vg_assert(SUCCESS);
+   r = ML_(generic_POST_sys_accept)(tid, VG_(mk_SysRes_Success)(RES),
+                                         ARG1,ARG3,ARG4);
    SET_STATUS_from_SysRes(r);
 }
 
@@ -594,6 +1116,14 @@ POST(sys_socketpair)
                                          ARG1,ARG2,ARG3,ARG4);
 }
 
+PRE(sys_ktrace)
+{
+   PRINT("sys_ktrace ( %s, %d, %d, %d )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(int, "ktrace",
+   		const char*, tracefile, int, ops, int, trpoints, int, pid);
+   PRE_MEM_RASCIIZ("ktrace(tracefile)", ARG1);
+}
+
 /* ---------------------------------------------------------------------
    *mount wrappers
    ------------------------------------------------------------------ */
@@ -694,6 +1224,16 @@ POST(sys_getresgid)
 /* ---------------------------------------------------------------------
    miscellaneous wrappers
    ------------------------------------------------------------------ */
+
+PRE(sys_closefrom)
+{
+	PRINT("sys_closefrom ( %d )", ARG1);
+	PRE_REG_READ1(int, "closefrom", int, fd);
+	/* Because we have to accept the case where valgrind logging
+	   descriptors are above fd, we might as well silently drop all calls
+	*/
+	SET_STATUS_Success(0);
+}
 
 #if 0
 PRE(sys_exit_group)
@@ -870,11 +1410,45 @@ POST(sys_fstat)
    POST_MEM_WRITE( ARG2, sizeof(struct vki_stat) );
 }
 
+PRE(sys_nfssvc)
+{
+   PRINT("sys_nfssvc ( %d, %p )", ARG1, (void*)ARG2);
+   PRE_REG_READ2(int, "nfssvc", int, flags, void*, argstructp);
+}
+
+PRE(sys_statvfs)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_statvfs ( %#lx(%s), %#lx )", ARG1, (HChar *) ARG1, ARG2);
+   PRE_REG_READ2(long, "statvfs", const char*, path,
+                 struct vki_statvfs*, buf);
+   PRE_MEM_RASCIIZ("statvfs(path)", ARG1);
+   PRE_MEM_WRITE("statvfs(buf)", ARG2, sizeof(struct vki_statvfs));
+}
+
+PRE(sys_fstatvfs)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_fstatvfs ( %ld, %#lx )", SARG1, ARG2);
+   PRE_REG_READ2(long, "fstatvfs", int, fd, struct vki_statvfs*, buf);
+   PRE_MEM_WRITE("fstatvfs(buf)", ARG2, sizeof(struct vki_statvfs));
+
+   if (!ML_(fd_allowed)(ARG1, "fstatvfs", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
+}
+
 PRE(sys_pathconf)
 {
    PRINT("sys_pathconf ( %#lx(%s), %ld )",ARG1,(char *)ARG1,ARG2);
    PRE_REG_READ2(long, "pathconf", char *, file_name, int, name);
    PRE_MEM_RASCIIZ( "pathconf(file_name)", ARG1 );
+}
+
+PRE(sys_lpathconf)
+{
+   PRINT("sys_lpathconf ( %#lx(%s), %ld )",ARG1,(char *)ARG1,ARG2);
+   PRE_REG_READ2(long, "lpathconf", char *, file_name, int, name);
+   PRE_MEM_RASCIIZ( "lpathconf(file_name)", ARG1 );
 }
 
 PRE(sys_fpathconf)
@@ -1041,6 +1615,34 @@ PRE(sys_futimes)
    PRE_REG_READ2(long, "futimes", int, fd, struct timeval *, tvp);
    if (ARG2 != 0)
       PRE_MEM_READ( "futimes(tvp)", ARG2, sizeof(struct vki_timeval) );
+}
+
+PRE(sys_futimens)
+{
+   PRINT("sys_futimes ( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "futimes", int, fd, const struct timespec*, times);
+   if (ARG2 != 0)
+      PRE_MEM_READ( "futimens(times)", ARG2, sizeof(struct vki_timespec) * 2);
+}
+
+PRE(sys_utimensat)
+{
+   Int fd = (Int) ARG1;
+
+   PRINT("sys_utimensat ( %d, %#lx(%s), %#lx, %ld )",
+         fd, ARG2, (HChar *) ARG2, ARG3, SARG4);
+   PRE_REG_READ4(long, "utimensat", int, fd, const char*, path,
+                 const struct vki_timespec*, times, int, flag);
+   if (ARG2)
+      PRE_MEM_RASCIIZ("utimensat(path)", ARG2);
+   if (ARG3)
+      PRE_MEM_READ("utimensat(times)", ARG3, 2 * sizeof(struct vki_timespec));
+
+   if (fd != VKI_AT_FDCWD
+       && ML_(safe_to_deref)((void *) ARG2, 1)
+       && ((HChar *) ARG2)[0] != '/'
+       && !ML_(fd_allowed)(fd, "utimensat", tid, False))
+      SET_STATUS_Failure(VKI_EBADF);
 }
 
 PRE(sys_utrace)
@@ -1248,6 +1850,119 @@ POST(sys_statfs6)
    POST_MEM_WRITE( ARG2, sizeof(struct vki_statfs6) );
 }
 
+PRE(sys_ppoll)
+{
+   UInt i;
+   struct vki_pollfd* ufds = (struct vki_pollfd *)(Addr)ARG1;
+   *flags |= SfMayBlock | SfPostOnFail;
+   PRINT("sys_ppoll ( %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#" FMT_REGWORD
+         "x, %#" FMT_REGWORD "x, %" FMT_REGWORD "u )\n",
+         ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(long, "ppoll",
+                 struct vki_pollfd *, ufds, unsigned int, nfds,
+                 struct vki_timespec *, tsp, vki_sigset_t *, sigmask,
+                 vki_size_t, sigsetsize);
+
+   for (i = 0; i < ARG2; i++) {
+      PRE_MEM_READ( "ppoll(ufds.fd)",
+                    (Addr)(&ufds[i].fd), sizeof(ufds[i].fd) );
+      PRE_MEM_READ( "ppoll(ufds.events)",
+                    (Addr)(&ufds[i].events), sizeof(ufds[i].events) );
+      PRE_MEM_WRITE( "ppoll(ufds.revents)",
+                     (Addr)(&ufds[i].revents), sizeof(ufds[i].revents) );
+   }
+
+   if (ARG3)
+      PRE_MEM_READ( "ppoll(tsp)", ARG3, sizeof(struct vki_timespec) );
+   if (ARG4 != 0 && sizeof(vki_sigset_t) == ARG5) {
+      const vki_sigset_t *guest_sigmask = (vki_sigset_t *)(Addr)ARG4;
+      PRE_MEM_READ( "ppoll(sigmask)", ARG4, ARG5);
+      if (!ML_(safe_to_deref)(guest_sigmask, sizeof(*guest_sigmask))) {
+         ARG4 = 1; /* Something recognisable to POST() hook. */
+      } else {
+         vki_sigset_t *vg_sigmask =
+             VG_(malloc)("syswrap.ppoll.1", sizeof(*vg_sigmask));
+         ARG4 = (Addr)vg_sigmask;
+         *vg_sigmask = *guest_sigmask;
+         VG_(sanitize_client_sigmask)(vg_sigmask);
+      }
+   }
+}
+
+POST(sys_ppoll)
+{
+   vg_assert(SUCCESS || FAILURE);
+   if (SUCCESS && (RES >= 0)) {
+      UInt i;
+      struct vki_pollfd* ufds = (struct vki_pollfd *)(Addr)ARG1;
+      for (i = 0; i < ARG2; i++)
+	 POST_MEM_WRITE( (Addr)(&ufds[i].revents), sizeof(ufds[i].revents) );
+   }
+   if (ARG4 != 0 && ARG5 == sizeof(vki_sigset_t) && ARG4 != 1) {
+      VG_(free)((vki_sigset_t *) (Addr)ARG4);
+	}
+}
+
+PRE(sys_procctl)
+{
+	PRINT("sys_procctl ( %d, %d, %d, %p )", ARG1, ARG2, ARG3, (void*)ARG4);
+	PRE_REG_READ4(long, "procctl",
+		vki_idtype_t, idtype, vki_id_t, id, int, cmd, void*, data);
+	
+	if (ARG3 == VKI_PROC_REAP_STATUS)
+		PRE_MEM_WRITE("procctl(arg)", ARG4, sizeof(struct vki_reaper_status));
+}
+
+/* ---------------------------------------------------------------------
+   extattr* wrappers
+   ------------------------------------------------------------------ */
+
+PRE(sys_extattrctl)
+{
+   PRINT("sys_extattrctl ( %s, %d, %s, %d, %s )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(int, "extattrctl",
+   		const char*, path, int, cmd, const char*, filename,
+		int, attrnamespace, const char*, attrname);
+   PRE_MEM_RASCIIZ("sys_extattrctl(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattrctl(filename)", ARG3);
+   PRE_MEM_RASCIIZ("sys_extattrctl(attrname)", ARG5);
+}
+
+PRE(sys_extattr_set_file)
+{
+   PRINT("sys_extattr_set_file ( %s, %d, %s, %p, %ld )", ARG1, ARG2, ARG3, (void*)ARG4, ARG5);
+   PRE_REG_READ5(vki_ssize_t, "sys_extattr_set_file",
+   		const char*, path, int, attrnamespace, const char*, attrname,
+		const void*, data, vki_size_t, nbytes);
+   PRE_MEM_RASCIIZ("sys_extattr_set_file(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattr_set_file(attrname)", ARG3);
+   PRE_MEM_READ("sys_extattr_set_file(data)", ARG4, ARG5);
+}
+
+PRE(sys_extattr_get_file)
+{
+   PRINT("sys_extattr_get_file ( %s, %d, %s, %p, %ld )", ARG1, ARG2, ARG3, (void*)ARG4, ARG5);
+   PRE_REG_READ5(vki_ssize_t, "sys_extattr_get_file",
+   		const char*, path, int, attrnamespace, const char*, attrname,
+		void*, data, vki_size_t, nbytes);
+   PRE_MEM_RASCIIZ("sys_extattr_get_file(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattr_get_file(attrname)", ARG3);
+}
+POST(sys_extattr_get_file)
+{
+   if (RES > 0)
+      POST_MEM_WRITE(ARG4, RES);
+}
+
+PRE(sys_extattr_delete_file)
+{
+   PRINT("sys_extattr_delete_file ( %s, %d, %s )", ARG1, ARG2, ARG3);
+   PRE_REG_READ3(vki_ssize_t, "sys_extattr_delete_file",
+   		const char*, path, int, attrnamespace, const char*, attrname);
+   PRE_MEM_RASCIIZ("sys_extattr_delete_file(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattr_delete_file(attrname)", ARG3);
+}
+
 /* ---------------------------------------------------------------------
    kld* wrappers
    ------------------------------------------------------------------ */
@@ -1295,10 +2010,66 @@ POST(sys_kldsym)
    POST_MEM_WRITE( (Addr)&kslp->symsize, sizeof(kslp->symsize) );
 }
 
-#if 0
+PRE(sys_kldfirstmod)
+{
+   PRINT("sys_kldfirstmod ( %ld )", ARG1);
+   PRE_REG_READ1(int, "kldfirstmod", int, fileid);
+}
+
+PRE(sys_kldstat)
+{
+   PRINT("sys_kldstat ( %ld, %p )", ARG1, (void*)ARG2);
+   PRE_REG_READ2(int, "kldstat", int, fileid, struct vki_kld_file_stat*, stat);
+}
+POST(sys_kldstat)
+{
+   if (RES != -1)
+      POST_MEM_WRITE(ARG2, sizeof(struct vki_kld_file_stat));
+}
+
 /* ---------------------------------------------------------------------
    aio_* wrappers
    ------------------------------------------------------------------ */
+
+PRE(sys_aio_error)
+{
+	PRINT("sys_aio_error ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_error", const struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_cancel)
+{
+	PRINT("sys_aio_cancel ( %d, %p )", (void*)ARG1, ARG2);
+	PRE_REG_READ2(long, "aio_cancel", int, filedes, const struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_read)
+{
+	PRINT("sys_aio_read ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_read", struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_write)
+{
+	PRINT("sys_aio_write ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_write", struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_return)
+{
+	PRINT("sys_aio_return ( %p )", (void*)ARG1);
+	PRE_REG_READ1(long, "aio_return", struct vki_aiocb*, iocb);
+}
+
+PRE(sys_aio_suspend)
+{
+	PRINT("sys_aio_suspend ( %p, %d, %p )", (void*)ARG1, ARG2, (void*)ARG3);
+	PRE_REG_READ3(long, "aio_suspend",
+		const struct vki_aiocb *const, iocbs[],
+		int, niocb, const struct vki_timespec*, timeout);
+}
+
+#if 0
 
 // Nb: this wrapper has to pad/unpad memory around the syscall itself,
 // and this allows us to control exactly the code that gets run while
@@ -1518,6 +2289,55 @@ POST(sys_mq_open)
          ML_(record_fd_open_with_given_name)(tid, RES, (Char*)ARG1);
    }
 }
+PRE(sys_mq_close)
+{
+   PRINT("sys_mq_close( %d )", ARG1);
+   PRE_REG_READ1(long, "mq_close", vki_mqd_t, mqdes);
+}
+
+#if 0 // Alt
+PRE(sys_mq_notify)
+{
+   PRINT("sys_mq_notify( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "mq_notify",
+   		vki_mqd_t, mqdes, const struct vki_sigevent*, notification);
+   if (ARG2 != 0)
+	   PRE_MEM_READ("mq_notify(notification)", ARG2, sizeof(struct vki_sigevent));
+}
+PRE(sys_mq_timedsend)
+{
+   PRINT("sys_mq_timedsend( %ld, %#lx, %zu, %lu, %#lx )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(long, "mq_timedsend",
+   		vki_mqd_t, mqdes, const char*, msg_ptr, vki_size_t, msg_len,
+		unsigned, msg_prio, const struct vki_timespec*, abs_timeout);
+   if (ARG5 != 0)
+      PRE_MEM_READ("mq_timedsend(abs_timeout)", ARG5, sizeof(struct vki_timespec));
+}
+POST(sys_mq_timedsend)
+{
+   if (RES != -1 && ARG2 != 0)
+      POST_MEM_WRITE(ARG2, ARG3);
+}
+PRE(sys_mq_timedreceive)
+{
+   PRINT("sys_mq_timedreceive( %ld, %#lx, %zu, %lu, %#lx )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(long, "mq_timedreceive",
+   		vki_mqd_t, mqdes, char*, msg_ptr, vki_size_t, msg_len,
+		unsigned*, msg_prio, const struct vki_timespec*, abs_timeout);
+   if (ARG5 != 0)
+      PRE_MEM_READ("mq_timedreceive(abs_timeout)", ARG5, sizeof(struct vki_timespec));
+}
+POST(sys_mq_timedreceive)
+{
+   if (RES != -1)
+   {
+   		if (ARG2 != 0)
+			POST_MEM_WRITE(ARG2, ARG3);
+   		if (ARG4 != 0)
+			POST_MEM_WRITE(ARG4, sizeof(unsigned));
+   }
+}
+#endif
 
 PRE(sys_mq_unlink)
 {
@@ -1525,8 +2345,6 @@ PRE(sys_mq_unlink)
    PRE_REG_READ1(long, "mq_unlink", const char *, name);
    PRE_MEM_RASCIIZ( "mq_unlink(name)", ARG1 );
 }
-
-#if 0
 PRE(sys_mq_timedsend)
 {
    *flags |= SfMayBlock;
@@ -1610,7 +2428,61 @@ POST(sys_mq_getsetattr)
       POST_MEM_WRITE( ARG3, sizeof(struct vki_mq_attr) );
 }
 
-#endif
+PRE(sys_mq_setattr)
+{
+   PRINT("sys_mq_setattr( %ld, %#lx, %#lx )", ARG1, ARG2, ARG3);
+   PRE_REG_READ3(long, "mq_setattr",
+   		vki_mqd_t, mqdes, const struct vki_mq_attr*, mqstat,
+		struct vki_mq_attr *restrict, omqstat);
+   if (ARG2 != 0)
+	   PRE_MEM_READ("mq_setattr(mqstat)", ARG2, sizeof(struct vki_mq_attr));
+}
+POST(sys_mq_setattr)
+{
+   if (RES != -1 && ARG3 != 0)
+   	   POST_MEM_WRITE(ARG3, sizeof(struct vki_mq_attr));
+}
+PRE(sys_mq_getattr)
+{
+   PRINT("sys_mq_getattr( %ld, %#lx )", ARG1, ARG2);
+   PRE_REG_READ2(long, "mq_getattr",
+   		vki_mqd_t, mqdes, struct vki_mq_attr*, mqstat);
+}
+POST(sys_mq_getattr)
+{
+   if (RES != -1 && ARG2 != 0)
+   	   POST_MEM_WRITE(ARG2, sizeof(struct vki_mq_attr));
+}
+
+PRE(sys_mq_send)
+{
+   PRINT("sys_mq_send( %ld, %#lx, %zu, %lu )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "mq_send",
+   		vki_mqd_t, mqdes, const char*, msg_ptr, vki_size_t, msg_len,
+		unsigned, msg_prio);
+}
+POST(sys_mq_send)
+{
+   if (RES != -1 && ARG2 != 0)
+      POST_MEM_WRITE(ARG2, ARG3);
+}
+PRE(sys_mq_receive)
+{
+   PRINT("sys_mq_receive( %ld, %#lx, %zu, %lu )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "mq_receive",
+   		vki_mqd_t, mqdes, char*, msg_ptr, vki_size_t, msg_len,
+		unsigned*, msg_prio);
+}
+POST(sys_mq_receive)
+{
+   if (RES != -1)
+   {
+   		if (ARG2 != 0)
+			POST_MEM_WRITE(ARG2, ARG3);
+   		if (ARG4 != 0)
+			POST_MEM_WRITE(ARG4, sizeof(unsigned));
+   }
+}
 
 /* ---------------------------------------------------------------------
    clock_* wrappers
@@ -1732,10 +2604,22 @@ PRE(sys_timer_delete)
    PRINT("sys_timer_delete( %#lx )", ARG1);
    PRE_REG_READ1(long, "timer_delete", vki_timer_t, timerid);
 }
+#endif
 
 /* ---------------------------------------------------------------------
    sched_* wrappers
    ------------------------------------------------------------------ */
+
+PRE(sys_usched_set)
+{
+   PRINT("usched_set ( %ld, %d, %p, %d )", ARG1, ARG2, (void*)ARG3, ARG4 );
+   PRE_REG_READ4(long, "usched_set",
+   		vki_pid_t, pid, int, cmd, void*, data, int, bytes);
+}
+POST(sys_usched_set)
+{
+	POST_MEM_WRITE(ARG3, ARG4);
+}
 
 PRE(sys_sched_setparam)
 {
@@ -1777,14 +2661,6 @@ PRE(sys_sched_setscheduler)
 		    ARG3, sizeof(struct vki_sched_param));
 }
 
-PRE(sys_sched_yield)
-{
-   *flags |= SfMayBlock;
-   PRINT("sched_yield()");
-   PRE_REG_READ0(long, "sched_yield");
-}
-#endif
-
 PRE(sys_sched_get_priority_max)
 {
    PRINT("sched_get_priority_max ( %ld )", ARG1);
@@ -1795,6 +2671,21 @@ PRE(sys_sched_get_priority_min)
 {
    PRINT("sched_get_priority_min ( %ld )", ARG1);
    PRE_REG_READ1(long, "sched_get_priority_min", int, policy);
+}
+
+PRE(sys_sched_rr_get_interval)
+{
+   PRINT("sched_rr_get_interval ( %ld, %#" FMT_REGWORD "x )", SARG1, ARG2);
+   PRE_REG_READ2(int, "sched_rr_get_interval",
+                 vki_pid_t, pid,
+                 struct vki_timespec *, tp);
+   PRE_MEM_WRITE("sched_rr_get_interval(timespec)",
+                 ARG2, sizeof(struct vki_timespec));
+}
+
+POST(sys_sched_rr_get_interval)
+{
+   POST_MEM_WRITE(ARG2, sizeof(struct vki_timespec));
 }
 
 #if 0
@@ -1878,6 +2769,21 @@ POST(sys_pipe2)
       ML_(record_fd_open_nameless)(tid, fildes[0]);
       ML_(record_fd_open_nameless)(tid, fildes[1]);
    }
+}
+
+PRE(sys_wait6)
+{
+   *flags |= SfMayBlock;
+   PRINT("sys_wait6 ( %d, %d, %p, %d, %p, %p )", ARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
+   PRE_REG_READ6(long, "wait6", 
+                 vki_idtype_t, idtype, vki_id_t, id, int*, status, int, options,
+				 struct vki___wrusage*, wrusage, vki_siginfo_t*, infop);
+   if (ARG2 != (Addr)NULL)
+      PRE_MEM_WRITE( "wait6(status)", ARG3, sizeof(int) );
+   if (ARG4 != (Addr)NULL)
+      PRE_MEM_WRITE( "wait6(__wrusage)", ARG5, sizeof(struct vki___wrusage) );
+   if (ARG6 != (Addr)NULL)
+      PRE_MEM_WRITE( "wait6(infop)", ARG6, sizeof(vki_siginfo_t) );
 }
 
 #if 0
@@ -2373,6 +3279,24 @@ POST(sys_rtprio_thread)
 }
 
 /* ---------------------------------------------------------------------
+   swap* wrappers
+   ------------------------------------------------------------------ */
+
+PRE(sys_swapon)
+{
+   PRINT("sys_swapon ( %s )", ARG1);
+   PRE_REG_READ1(int, "swapon", const char*, special);
+   PRE_MEM_RASCIIZ("swapon(special)", ARG1);
+}
+
+PRE(sys_swapoff)
+{
+   PRINT("sys_swapoff ( %s )", ARG1);
+   PRE_REG_READ1(int, "swapoff", const char*, special);
+   PRE_MEM_RASCIIZ("swapoff(special)", ARG1);
+}
+
+/* ---------------------------------------------------------------------
    sig* wrappers
    ------------------------------------------------------------------ */
 
@@ -2550,7 +3474,6 @@ PRE(sys_sigsuspend)
    }
 }
 
-#if 0
 /* ---------------------------------------------------------------------
    linux msg* wrapper helpers
    ------------------------------------------------------------------ */
@@ -2594,29 +3517,16 @@ ML_(linux_PRE_sys_msgctl) ( ThreadId tid,
    /* int msgctl(int msqid, int cmd, struct msqid_ds *buf); */
    switch (arg1 /* cmd */) {
    case VKI_IPC_INFO:
-   case VKI_MSG_INFO:
-   case VKI_IPC_INFO|VKI_IPC_64:
-   case VKI_MSG_INFO|VKI_IPC_64:
       PRE_MEM_WRITE( "msgctl(IPC_INFO, buf)",
                      arg2, sizeof(struct vki_msginfo) );
       break;
    case VKI_IPC_STAT:
-   case VKI_MSG_STAT:
       PRE_MEM_WRITE( "msgctl(IPC_STAT, buf)",
                      arg2, sizeof(struct vki_msqid_ds) );
-      break;
-   case VKI_IPC_STAT|VKI_IPC_64:
-   case VKI_MSG_STAT|VKI_IPC_64:
-      PRE_MEM_WRITE( "msgctl(IPC_STAT, arg.buf)",
-                     arg2, sizeof(struct vki_msqid64_ds) );
       break;
    case VKI_IPC_SET:
       PRE_MEM_READ( "msgctl(IPC_SET, arg.buf)",
                     arg2, sizeof(struct vki_msqid_ds) );
-      break;
-   case VKI_IPC_SET|VKI_IPC_64:
-      PRE_MEM_READ( "msgctl(IPC_SET, arg.buf)",
-                    arg2, sizeof(struct vki_msqid64_ds) );
       break;
    }
 }
@@ -2627,23 +3537,59 @@ ML_(linux_POST_sys_msgctl) ( ThreadId tid,
 {
    switch (arg1 /* cmd */) {
    case VKI_IPC_INFO:
-   case VKI_MSG_INFO:
-   case VKI_IPC_INFO|VKI_IPC_64:
-   case VKI_MSG_INFO|VKI_IPC_64:
       POST_MEM_WRITE( arg2, sizeof(struct vki_msginfo) );
       break;
    case VKI_IPC_STAT:
-   case VKI_MSG_STAT:
       POST_MEM_WRITE( arg2, sizeof(struct vki_msqid_ds) );
-      break;
-   case VKI_IPC_STAT|VKI_IPC_64:
-   case VKI_MSG_STAT|VKI_IPC_64:
-      POST_MEM_WRITE( arg2, sizeof(struct vki_msqid64_ds) );
       break;
    }
 }
 
-#endif
+PRE(sys_msgget)
+{
+   PRINT("sys_msgget ( %ld, %ld )", SARG1, SARG2);
+   PRE_REG_READ2(long, "msgget", vki_key_t, key, int, msgflg);
+}
+
+PRE(sys_msgsnd)
+{
+   PRINT("sys_msgsnd ( %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %ld )",
+         SARG1, ARG2, ARG3, SARG4);
+   PRE_REG_READ4(long, "msgsnd",
+                 int, msqid, struct msgbuf *, msgp, vki_size_t, msgsz, int, msgflg);
+   ML_(linux_PRE_sys_msgsnd)(tid, ARG1,ARG2,ARG3,ARG4);
+   if ((ARG4 & VKI_IPC_NOWAIT) == 0)
+      *flags |= SfMayBlock;
+}
+
+PRE(sys_msgrcv)
+{
+   PRINT("sys_msgrcv ( %ld, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %ld, %ld )",
+         SARG1, ARG2, ARG3, SARG4, SARG5);
+   PRE_REG_READ5(long, "msgrcv",
+                 int, msqid, struct msgbuf *, msgp, vki_size_t, msgsz,
+                 long, msgytp, int, msgflg);
+   ML_(linux_PRE_sys_msgrcv)(tid, ARG1,ARG2,ARG3,ARG4,ARG5);
+   if ((ARG5 & VKI_IPC_NOWAIT) == 0)
+      *flags |= SfMayBlock;
+}
+POST(sys_msgrcv)
+{
+   ML_(linux_POST_sys_msgrcv)(tid, RES,ARG1,ARG2,ARG3,ARG4,ARG5);
+}
+
+PRE(sys_msgctl)
+{
+   PRINT("sys_msgctl ( %ld, %ld, %#" FMT_REGWORD "x )", SARG1, SARG2, ARG3);
+   PRE_REG_READ3(long, "msgctl",
+                 int, msqid, int, cmd, struct msqid_ds *, buf);
+   ML_(linux_PRE_sys_msgctl)(tid, ARG1,ARG2,ARG3);
+}
+
+POST(sys_msgctl)
+{
+   ML_(linux_POST_sys_msgctl)(tid, RES,ARG1,ARG2,ARG3);
+}
 
 PRE(sys_chflags)
 {
@@ -2653,18 +3599,45 @@ PRE(sys_chflags)
    PRE_MEM_RASCIIZ( "chflags(path)", ARG1 );
 }
 
+PRE(sys_lchflags)
+{
+   PRINT("sys_lchflags ( %#lx(%s), 0x%lx )", ARG1,(char *)ARG1,ARG2);
+   PRE_REG_READ2(long, "chown",
+                 const char *, path, vki_int32_t, flags);
+   PRE_MEM_RASCIIZ( "lchflags(path)", ARG1 );
+}
+
 PRE(sys_fchflags)
 {
    PRINT("sys_fchflags ( %ld, %ld )", ARG1,ARG2);
    PRE_REG_READ2(long, "fchflags", unsigned int, fildes, vki_int32_t, flags);
 }
 
+PRE(sys_chflagsat)
+{
+   PRINT("sys_chflagsat ( %ld, %s, %lu, %d )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "chflagsat",
+                 int, fd, const char*, path, unsigned long, flags, int, atflag);
+   PRE_MEM_RASCIIZ("chflagsat(path)", ARG1);
+}
+
+PRE(sys_modnext)
+{
+   PRINT("sys_modnext ( %d )", ARG1);
+   PRE_REG_READ1(long, "modnext", int, modid);
+}
 
 PRE(sys_modfind)
 {
    PRINT("sys_modfind ( %#lx )",ARG1);
    PRE_REG_READ1(long, "modfind", char *, modname);
    PRE_MEM_RASCIIZ( "modfind(modname)", ARG1 );
+}
+
+PRE(sys_modfnext)
+{
+   PRINT("sys_modfnext ( %d )", ARG1);
+   PRE_REG_READ1(long, "modfnext", int, modid);
 }
 
 PRE(sys_modstat)
@@ -3394,6 +4367,13 @@ PRE(sys_fcntl)
                     struct flock *, lock);
       break;
 
+   case VKI_F_GETPATH:
+      PRINT("sys_fcntl[ARG3=='path'] ( %ld, %ld, %p )", ARG1, ARG2,
+         (void*)ARG3);
+      PRE_REG_READ3(long, "fcntl", unsigned int, fd, unsigned int, cmd,
+         char*, path);
+      break;
+
    default:
       PRINT("sys_fcntl[UNKNOWN] ( %ld, %ld, %ld )", ARG1,ARG2,ARG3);
       I_die_here;
@@ -3412,6 +4392,9 @@ POST(sys_fcntl)
          if (VG_(clo_track_fds))
             ML_(record_fd_open_named)(tid, RES);
       }
+   }
+   else if (ARG2 == VKI_F_GETPATH && RES == 0) {
+      POST_MEM_WRITE(ARG3, VG_(strlen)(ARG3) + 1);
    }
 }
 
@@ -3799,6 +4782,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENXY(__NR_open,			sys_open),			// 5
    GENXY(__NR_close,			sys_close),			// 6
    GENXY(__NR_wait4,			sys_wait4),			// 7
+   BSDX_(__NR_wait6,			sys_wait6),
 
    // 4.3 creat								   8
    GENX_(__NR_link,			sys_link),			// 9
@@ -3812,7 +4796,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    GENX_(__NR_chown,			sys_chown),			// 16
    GENX_(__NR_break,			sys_brk),			// 17
-   BSDXY(__NR_getfsstat4,		sys_getfsstat4),		// 18
+   //BSDXY(__NR_getfsstat4,		sys_getfsstat4),		// 18
    // 4.3 lseek								   19
 
    GENX_(__NR_getpid,			sys_getpid),			// 20
@@ -3828,12 +4812,16 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_sendmsg,			sys_sendmsg),			// 28
    BSDXY(__NR_recvfrom,			sys_recvfrom),			// 29
    BSDXY(__NR_accept,			sys_accept),			// 30
+   BSDXY(__NR_accept4,			sys_accept4),			// 30
+   BSDXY(__NR_extaccept,		sys_extaccept),			// 30
    BSDXY(__NR_getpeername,		sys_getpeername),		// 31
 
    BSDXY(__NR_getsockname,		sys_getsockname),		// 32
    GENX_(__NR_access,			sys_access),			// 33
    BSDX_(__NR_chflags,			sys_chflags),			// 34
+   BSDX_(__NR_lchflags,			sys_lchflags),			// 34
    BSDX_(__NR_fchflags,			sys_fchflags),			// 35
+   BSDX_(__NR_chflagsat,		sys_chflagsat),
 
    GENX_(__NR_sync,			sys_sync),			// 36
    GENX_(__NR_kill,			sys_kill),			// 37
@@ -3846,7 +4834,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_getegid,			sys_getegid),			// 43
 
    // GENX_(__NR_profil,		sys_profil),			// 44
-// BSDX_(__NR_ktrace,			sys_ktrace),			// 45
+   BSDX_(__NR_ktrace,			sys_ktrace),			// 45
    // 4.3 sigaction							   46
    GENX_(__NR_getgid,			sys_getgid),			// 47
 
@@ -3896,7 +4884,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENXY(__NR_setitimer,		sys_setitimer),			// 83
 
    // 4.3 wait								   84
-// BSDX_(__NR_swapon,			sys_swapon),			// 85
+   BSDX_(__NR_swapon,			sys_swapon),			// 85
+   BSDX_(__NR_swapoff,			sys_swapoff),			// 85
    GENXY(__NR_getitimer,		sys_getitimer),			// 86
    // 4.3 gethostname							   87
 
@@ -3913,6 +4902,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_setpriority,		sys_setpriority),		// 96
    BSDXY(__NR_socket,			sys_socket),			// 97
    BSDX_(__NR_connect,			sys_connect),			// 98
+   BSDX_(__NR_extconnect,		sys_extconnect),		// 98
    // 4.3 accept							   99
 
    GENX_(__NR_getpriority,		sys_getpriority),		// 100
@@ -3983,7 +4973,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // bsd/os sem_wakeup							   152
    // bsd/os asyncdaemon						   153
    // nosys								   154
-   // BSDXY(__NR_nfssvc,		sys_nfssvc),			// 155
+   BSDX_(__NR_nfssvc,		sys_nfssvc),			// 155
 
    // 4.3 getdirentries							   156
    GENXY(__NR_statfs,			sys_statfs),			// 157
@@ -4006,8 +4996,12 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // BSDXY(__NR_shmsys,			sys_shmsys),			// 171
 
    // nosys								   172
-   BSDXY(__NR_pread6,			sys_pread),			// 173
-   BSDX_(__NR_pwrite6,			sys_pwrite),			// 174
+   BSDXY(__NR_extpread,			sys_pread),				// 173
+   BSDXY(__NR_extpreadv,		sys_preadv),				// 173
+   BSDX_(__NR_extpwrite,		sys_pwrite),			// 174
+   BSDX_(__NR_extpwritev,		sys_pwritev),			// 174
+   //BSDXY(__NR_pread6,			sys_pread),			
+   //BSDX_(__NR_pwrite6,			sys_pwrite),			// 174
    // nosys								   175
 
 // BSDXY(__NR_ntp_adjtime,		sys_ntp_adjtime),		// 176
@@ -4028,17 +5022,19 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_stat,			sys_stat),			// 188
    BSDXY(__NR_fstat,			sys_fstat),			// 189
    BSDXY(__NR_lstat,			sys_lstat),			// 190
+   BSDX_(__NR_statvfs,			sys_statvfs),
+   BSDX_(__NR_fstatvfs,			sys_fstatvfs),
    BSDX_(__NR_pathconf,			sys_pathconf),			// 191
-
+   BSDX_(__NR_lpathconf,		sys_lpathconf),
    BSDX_(__NR_fpathconf,		sys_fpathconf),			// 192
    // nosys								   193
    GENXY(__NR_getrlimit,		sys_getrlimit),			// 194
    GENX_(__NR_setrlimit,		sys_setrlimit),			// 195
 
    BSDXY(__NR_getdirentries,		sys_getdirentries),		// 196
-   BSDX_(__NR_mmap6,			sys_mmap7),			// 197
+   //BSDX_(__NR_mmap6,			sys_mmap7),			// 197
    // __syscall (handled specially)					// 198
-   BSDX_(__NR_lseek6,			sys_lseek),			// 199
+   //BSDX_(__NR_lseek6,			sys_lseek),			// 199
 
    BSDX_(__NR_truncate,			sys_truncate),			// 200
    BSDX_(__NR_ftruncate,		sys_ftruncate),			// 201
@@ -4052,31 +5048,33 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // netbsd newreboot							   208
    GENXY(__NR_poll,			sys_poll),			// 209
-   BSDX_(__NR_lkmnosys0,		sys_lkmnosys0),			// 210
-   BSDX_(__NR_lkmnosys1,		sys_lkmnosys1),			// 211
+   BSDXY(__NR_ppoll,		sys_ppoll),
+   BSDX_(__NR_procctl,		sys_procctl),		// 536
+   //BSDX_(__NR_lkmnosys0,		sys_lkmnosys0),			// 210
+   //BSDX_(__NR_lkmnosys1,		sys_lkmnosys1),			// 211
 
-   BSDX_(__NR_lkmnosys2,		sys_lkmnosys2),			// 212
-   BSDX_(__NR_lkmnosys3,		sys_lkmnosys3),			// 213
-   BSDX_(__NR_lkmnosys4,		sys_lkmnosys4),			// 214
-   BSDX_(__NR_lkmnosys5,		sys_lkmnosys5),			// 215
+   //BSDX_(__NR_lkmnosys2,		sys_lkmnosys2),			// 212
+   //BSDX_(__NR_lkmnosys3,		sys_lkmnosys3),			// 213
+   //BSDX_(__NR_lkmnosys4,		sys_lkmnosys4),			// 214
+   //BSDX_(__NR_lkmnosys5,		sys_lkmnosys5),			// 215
 
-   BSDX_(__NR_lkmnosys6,		sys_lkmnosys6),			// 216
-   BSDX_(__NR_lkmnosys7,		sys_lkmnosys7),			// 217
-   BSDX_(__NR_lkmnosys8,		sys_lkmnosys8),			// 218
+   //BSDX_(__NR_lkmnosys6,		sys_lkmnosys6),			// 216
+   //BSDX_(__NR_lkmnosys7,		sys_lkmnosys7),			// 217
+   //BSDX_(__NR_lkmnosys8,		sys_lkmnosys8),			// 218
 // BSDXY(__NR_nfs_fhopen,		sys_nfs_fhopen),		// 219
 
-   BSDXY(__NR___semctl7,		sys___semctl7),			// 220
+   //BSDXY(__NR___semctl7,		sys___semctl7),			// 220
    BSDX_(__NR_semget,			sys_semget),			// 221
    BSDX_(__NR_semop,			sys_semop),			// 222
    // unimpl semconfig							   223
 
-// BSDXY(__NR_msgctl,			sys_msgctl),			// 224
-// BSDX_(__NR_msgget,			sys_msgget),			// 225
-// BSDX_(__NR_msgsnd,			sys_msgsnd),			// 226
-// BSDXY(__NR_msgrcv,			sys_msgrcv),			// 227
+   BSDXY(__NR_msgctl,			sys_msgctl),			// 224
+   BSDX_(__NR_msgget,			sys_msgget),			// 225
+   BSDX_(__NR_msgsnd,			sys_msgsnd),			// 226
+   BSDXY(__NR_msgrcv,			sys_msgrcv),			// 227
 
    BSDXY(__NR_shmat,			sys_shmat),				// 228
-   BSDXY(__NR_shmctl7,			sys_shmctl7),			// 229
+   //BSDXY(__NR_shmctl7,			sys_shmctl7),			// 229
    BSDXY(__NR_shmdt,			sys_shmdt),				// 230
    BSDX_(__NR_shmget,			sys_shmget),			// 231
 
@@ -4165,9 +5163,9 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_fhopen,			sys_fhopen),			// 298
    BSDXY(__NR_fhstat,			sys_fhstat),			// 299
 
-// BSDX_(__NR_modnext,			sys_modnext),			// 300
+   BSDX_(__NR_modnext,			sys_modnext),			// 300
    BSDXY(__NR_modstat,			sys_modstat),			// 301
-// BSDX_(__NR_modfnext,			sys_modfnext),			// 302
+   BSDX_(__NR_modfnext,			sys_modfnext),			// 302
    BSDX_(__NR_modfind,			sys_modfind),			// 303
 
    BSDX_(__NR_kldload,			sys_kldload),			// 304
@@ -4175,8 +5173,8 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR_kldfind,			sys_kldfind),			// 306
    BSDX_(__NR_kldnext,			sys_kldnext),			// 307
 
-// BSDXY(__NR_kldstat,			sys_kldstat),			// 308
-// BSDX_(__NR_kldfirstmod,		sys_kldfirstmod),		// 309
+   BSDXY(__NR_kldstat,			sys_kldstat),			// 308
+   BSDX_(__NR_kldfirstmod,		sys_kldfirstmod),		// 309
    GENX_(__NR_getsid,			sys_getsid),			// 310
    BSDX_(__NR_setresuid,		sys_setresuid),			// 311
 
@@ -4198,16 +5196,17 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_mlockall,			sys_mlockall),			// 324
    BSDX_(__NR_munlockall,		sys_munlockall),		// 325
    BSDXY(__NR___getcwd,			sys___getcwd),			// 326
-// BSDXY(__NR_sched_setparam,		sys_sched_setparam),		// 327
+   BSDXY(__NR_usched_set,		sys_usched_set),
+   BSDXY(__NR_sched_setparam,		sys_sched_setparam),		// 327
 
-// BSDXY(__NR_sched_getparam,		sys_sched_getparam),		// 328
-// BSDX_(__NR_sched_setscheduler,	sys_sched_setscheduler),	// 329
-// BSDX_(__NR_sched_getscheduler,	sys_sched_getscheduler),	// 330
+   BSDXY(__NR_sched_getparam,		sys_sched_getparam),		// 328
+   BSDX_(__NR_sched_setscheduler,	sys_sched_setscheduler),	// 329
+   BSDX_(__NR_sched_getscheduler,	sys_sched_getscheduler),	// 330
    BSDX_(__NR_sched_yield,		sys_sched_yield),		// 331
 
    BSDX_(__NR_sched_get_priority_max,	sys_sched_get_priority_max),	// 332
    BSDX_(__NR_sched_get_priority_min,	sys_sched_get_priority_min),	// 333
-// BSDXY(__NR_sched_rr_get_interval,	sys_sched_rr_get_interval),	// 334
+   BSDXY(__NR_sched_rr_get_interval,	sys_sched_rr_get_interval),	// 334
    BSDX_(__NR_utrace,			sys_utrace),			// 335
 
    // compat3 sendfile							   336
@@ -4217,7 +5216,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    BSDXY(__NR_sigprocmask,		sys_sigprocmask),		// 340
    BSDX_(__NR_sigsuspend,		sys_sigsuspend),		// 341
-   BSDXY(__NR_sigaction4,		sys_sigaction4),		// 342
+   //BSDXY(__NR_sigaction4,		sys_sigaction4),		// 342
    BSDXY(__NR_sigpending,		sys_sigpending),		// 343
 
 //   BSDX_(__NR_sigreturn4,		sys_sigreturn4),			// 344
@@ -4233,11 +5232,11 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR___acl_delete_fd,		sys___acl_delete_fd),		// 352
    BSDX_(__NR___acl_aclcheck_file,	sys___acl_aclcheck_file),	// 353
    BSDX_(__NR___acl_aclcheck_fd,	sys___acl_aclcheck_fd),		// 354
-   // BSDXY(__NR_extattrctl,		sys_extattrctl),		// 355
 
-   // BSDXY(__NR_extattr_set_file,	sys_extattr_set_file),		// 356
-   // BSDXY(__NR_extattr_get_file,	sys_extattr_get_file),		// 357
-   // BSDXY(__NR_extattr_delete_file,	sys_extattr_delete_file),	// 358
+   BSDX_(__NR_extattrctl,		sys_extattrctl),		// 355
+   BSDX_(__NR_extattr_set_file,	sys_extattr_set_file),		// 356
+   BSDXY(__NR_extattr_get_file,	sys_extattr_get_file),		// 357
+   BSDX_(__NR_extattr_delete_file,	sys_extattr_delete_file),	// 358
    // BSDXY(__NR_aio_waitcomplete,	sys_aio_waitcomplete),		// 359
 
    BSDXY(__NR_getresuid,		sys_getresuid),			// 360
@@ -4283,11 +5282,11 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_uuidgen,			sys_uuidgen),			// 392
    BSDXY(__NR_sendfile,			sys_sendfile),			// 393
    // mac_syscall							   394
-   BSDXY(__NR_getfsstat,		sys_getfsstat),			// 395
+   //BSDXY(__NR_getfsstat,		sys_getfsstat),			// 395
 
-   BSDXY(__NR_statfs6,			sys_statfs6),			// 396
-   BSDXY(__NR_fstatfs6,			sys_fstatfs6),			// 397
-   BSDXY(__NR_fhstatfs6,		sys_fhstatfs6),			// 398
+   //BSDXY(__NR_statfs6,			sys_statfs6),			// 396
+   //BSDXY(__NR_fstatfs6,			sys_fstatfs6),			// 397
+   //BSDXY(__NR_fhstatfs6,		sys_fhstatfs6),			// 398
    // nosys								   399
 
    // ksem_close							   400
@@ -4316,24 +5315,24 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // __xfstat								   419
 
    // __xlstat								   420
-   BSDXY(__NR_getcontext,		sys_getcontext),		// 421
-   BSDX_(__NR_setcontext,		sys_setcontext),		// 422
-   BSDXY(__NR_swapcontext,		sys_swapcontext),		// 423
+   //BSDXY(__NR_getcontext,		sys_getcontext),		// 421
+   //BSDX_(__NR_setcontext,		sys_setcontext),		// 422
+   //BSDXY(__NR_swapcontext,		sys_swapcontext),		// 423
 
    // swapoff								   424
-   BSDXY(__NR___acl_get_link,		sys___acl_get_link),		// 425
-   BSDX_(__NR___acl_set_link,		sys___acl_set_link),		// 426
-   BSDX_(__NR___acl_delete_link,	sys___acl_delete_link),		// 427
+   //BSDXY(__NR___acl_get_link,		sys___acl_get_link),		// 425
+   //BSDX_(__NR___acl_set_link,		sys___acl_set_link),		// 426
+   //BSDX_(__NR___acl_delete_link,	sys___acl_delete_link),		// 427
 
-   BSDX_(__NR___acl_aclcheck_link,	sys___acl_aclcheck_link),	// 428
+   //BSDX_(__NR___acl_aclcheck_link,	sys___acl_aclcheck_link),	// 428
    //!sigwait								   429
    // thr_create							   430
-   BSDX_(__NR_thr_exit,			sys_thr_exit),			// 431
+   //BSDX_(__NR_thr_exit,			sys_thr_exit),			// 431
 
-   BSDXY(__NR_thr_self, 		sys_thr_self),			// 432
-   BSDXY(__NR_thr_kill,                 sys_thr_kill),			// 433
-   BSDXY(__NR__umtx_lock,		sys__umtx_lock),		// 434
-   BSDXY(__NR__umtx_unlock,		sys__umtx_unlock),		// 435
+   //BSDXY(__NR_thr_self, 		sys_thr_self),			// 432
+   //BSDXY(__NR_thr_kill,                 sys_thr_kill),			// 433
+   //BSDXY(__NR__umtx_lock,		sys__umtx_lock),		// 434
+   //BSDXY(__NR__umtx_unlock,		sys__umtx_unlock),		// 435
 
    // jail_attach							   436
    // extattr_list_fd							   437
@@ -4343,7 +5342,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // kse_switchin							   440
    // ksem_timedwait							   441
    // thr_suspend							   442
-   BSDX_(__NR_thr_wake,			sys_thr_wake),			// 443
+   //BSDX_(__NR_thr_wake,			sys_thr_wake),			// 443
    // kldunloadf							   444
    // audit								   445
    // auditon								   446
@@ -4356,61 +5355,68 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
    // setaudit_addr							   452
    // auditctl								   453
-   BSDXY(__NR__umtx_op,			sys__umtx_op),			// 454
-   BSDX_(__NR_thr_new,			sys_thr_new),			// 455
+   //BSDXY(__NR__umtx_op,			sys__umtx_op),			// 454
+   //BSDX_(__NR_thr_new,			sys_thr_new),			// 455
 
    // sigqueue								   456
-   BSDXY(__NR_kmq_open,          sys_mq_open),			// 457
-   // kmq_setattr							   458
-   // kmq_timedreceive							   459
-
-   // kmq_timedsend							   460
-   // kmq_notify							   461
-   BSDX_(__NR_kmq_unlink,        sys_mq_unlink),			// 462
+   BSDXY(__NR_mq_open,        	sys_mq_open),			// 457
+   BSDX_(__NR_mq_close,        	sys_mq_close),			// 457
+   BSDX_(__NR_mq_notify,      	sys_mq_notify),
+   BSDXY(__NR_mq_setattr,     	sys_mq_setattr),
+   BSDXY(__NR_mq_getattr,     	sys_mq_getattr),
+   BSDXY(__NR_mq_send,        	sys_mq_send),
+   BSDXY(__NR_mq_receive,     	sys_mq_receive),
+   BSDX_(__NR_mq_timedsend,   	sys_mq_timedsend),
+   BSDXY(__NR_mq_timedreceive, 	sys_mq_timedreceive),
+   BSDX_(__NR_mq_unlink,		sys_mq_unlink),				// 462
    // abort2								   463
 
-   BSDX_(__NR_thr_set_name,		sys_thr_set_name),		// 464
+   //BSDX_(__NR_thr_set_name,		sys_thr_set_name),		// 464
    // aio_fsync								   465
-   BSDXY(__NR_rtprio_thread,		sys_rtprio_thread),		// 466
+   //BSDXY(__NR_rtprio_thread,		sys_rtprio_thread),		// 466
    // nosys								   467
 
    // nosys								   468
-   // __getpath_fromfd							   469
-   // __getpath_fromaddr						   470
+   BSDX_(__NR_umtx_sleep,		sys_umtx_sleep), 			// 469
+   BSDX_(__NR_umtx_wakeup,		sys_umtx_wakeup),			// 470
    // sctp_peeloff							   471
+
+	BSDX_(__NR_set_tls_area,	sys_set_tls_area), // 472
+	BSDXY(__NR_get_tls_area,	sys_get_tls_area), // 473
 
    // sctp_generic_sendmsg						   472
    // sctp_generic_sendmsg_iov						   473
    // sctp_generic_recvmsg						   474
-   BSDXY(__NR_pread,			sys_pread7),			// 475
+   BSDX_(__NR_closefrom,		sys_closefrom),		// 474
+   //BSDXY(__NR_pread,			sys_pread7),			// 475
 
-   BSDX_(__NR_pwrite,			sys_pwrite7),			// 476
-   BSDX_(__NR_mmap,			sys_mmap7),			// 477
+   //BSDX_(__NR_pwrite,			sys_pwrite7),			// 476
+   BSDX_(__NR_mmap,			sys_mmap),			// 477
    BSDX_(__NR_lseek,			sys_lseek7),			// 478
-   BSDX_(__NR_truncate7,		sys_truncate7),			// 479
+   //BSDX_(__NR_truncate7,		sys_truncate7),			// 479
 
-   BSDX_(__NR_ftruncate7,		sys_ftruncate7),		// 480
-   BSDXY(__NR_thr_kill2,                sys_thr_kill2),			// 481
-   BSDXY(__NR_shm_open,			sys_shm_open),			// 482
-   BSDX_(__NR_shm_unlink,		sys_shm_unlink),		// 483
+   BSDX_(__NR_ftruncate,		sys_ftruncate),		// 480
+   //BSDXY(__NR_thr_kill2,                sys_thr_kill2),			// 481
+   //BSDXY(__NR_shm_open,			sys_shm_open),			// 482
+   //BSDX_(__NR_shm_unlink,		sys_shm_unlink),		// 483
 
    // cpuset								   484
-   // cpuset_setid							   485
+   GENX_(__NR_mcontrol,			sys_mcontrol), 			// 485
    // cpuset_getid							   486
 
-   BSDXY(__NR_cpuset_getaffinity,	sys_cpuset_getaffinity),	// 487
-   BSDX_(__NR_cpuset_setaffinity,	sys_cpuset_setaffinity),	// 488
+   //BSDXY(__NR_cpuset_getaffinity,	sys_cpuset_getaffinity),	// 487
+   //BSDX_(__NR_cpuset_setaffinity,	sys_cpuset_setaffinity),	// 488
    BSDX_(__NR_faccessat,		sys_faccessat),			// 489
    BSDX_(__NR_fchmodat,			sys_fchmodat),			// 490
    BSDX_(__NR_fchownat,			sys_fchownat),			// 491
 
    // fexecve								   492
    BSDXY(__NR_fstatat,			sys_fstatat),			// 493
-   BSDX_(__NR_futimesat,		sys_futimesat),			// 494
+   BSDX_(__NR_extexit,			sys_extexit),			// 494
    BSDX_(__NR_linkat,			sys_linkat),			// 495
 
-   BSDX_(__NR_mkdirat,			sys_mkdirat),			// 496
-   BSDX_(__NR_mkfifoat,			sys_mkfifoat),			// 497
+   BSDX_(__NR_mkfifoat,			sys_mkfifoat),			
+   BSDX_(__NR_mkdirat,			sys_mkdirat),			
    BSDX_(__NR_mknodat,			sys_mknodat),			// 498
    BSDXY(__NR_openat,			sys_openat),			// 499
 
@@ -4425,9 +5431,44 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDXY(__NR_shmctl,			sys_shmctl),			// 512
    BSDXY(__NR_pselect,          sys_pselect),			// 522
    BSDXY(__NR_pipe2,			sys_pipe2),			// 542
+   BSDX_(__NR___realpath,		sys_realpath),		// 551
+   BSDX_(__NR_futimens,			sys_futimens),		// 540
+   BSDX_(__NR_utimensat,		sys_utimensat),
 
    BSDX_(__NR_fake_sigreturn,		sys_fake_sigreturn),		// 1000, fake sigreturn
 
+   // aio_*
+   BSDX_(__NR_aio_error, 		sys_aio_error),
+   BSDX_(__NR_aio_cancel, 		sys_aio_cancel),
+   BSDX_(__NR_aio_read, 		sys_aio_read),
+   BSDX_(__NR_aio_write, 		sys_aio_write),
+   BSDX_(__NR_aio_return, 		sys_aio_return),
+   BSDX_(__NR_aio_suspend, 		sys_aio_suspend),
+
+   // lwp_*
+   BSDX_(__NR_lwp_create, 		sys_lwp_create),
+   BSDX_(__NR_lwp_gettid,		sys_lwp_gettid),
+   BSDX_(__NR_lwp_kill,			sys_lwp_kill),
+   BSDXY(__NR_lwp_rtprio,		sys_lwp_rtprio),
+   BSDX_(__NR_lwp_setname,		sys_lwp_setname),
+   BSDXY(__NR_lwp_getname,		sys_lwp_getname),
+   BSDX_(__NR_lwp_setaffinity,	sys_lwp_setaffinity),
+   BSDXY(__NR_lwp_getaffinity,	sys_lwp_getaffinity),
+   BSDX_(__NR_lwp_create2,		sys_lwp_create2),
+
+   BSDXY(__NR_varsym_get,		sys_varsym_get),
+   BSDX_(__NR_varsym_set,		sys_varsym_set),
+   BSDXY(__NR_varsym_list,		sys_varsym_list),
+	
+	// vmspace_*
+	//BSDX_(__NR_vmspace_create, 	sys_vmspace_create),
+	//BSDX_(__NR_vmspace_destroy, 	sys_vmspace_destroy),
+	//BSDX_(__NR_vmspace_ctl, 	sys_vmspace_ctl),
+	//BSDX_(__NR_vmspace_mmap, 		sys_vmspace_mmap),
+	//BSDX_(__NR_vmspace_munmap, 	sys_vmspace_munmap),
+	//BSDX_(__NR_vmspace_mcontrol, 	sys_vmspace_mcontrol),
+	//BSDX_(__NR_vmspace_pread, 		sys_vmspace_pread),
+	//BSDX_(__NR_vmspace_pwrite, 	sys_vmspace_pwrite),
 };
 
 const UInt ML_(syscall_table_size) =

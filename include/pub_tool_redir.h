@@ -325,11 +325,11 @@
 
 #if defined(VGO_dragonfly)
 
-#define  VG_Z_LD_ELF_SO_1           ldZhelfZdsoZd1           // ld-elf.so.1
-#define  VG_U_LD_ELF_SO_1           "ld-elf.so.1"
+#define  VG_Z_LD_ELF_SO_1           ldZhelfZdsoZd1           // ld-elf.so.2
+#define  VG_U_LD_ELF_SO_1           "ld-elf.so.2"
 
-#define  VG_Z_LD_ELF32_SO_1         ldZhelf32ZdsoZd1         // ld-elf32.so.1
-#define  VG_U_LD_ELF32_SO_1         "ld-elf32.so.1"
+#define  VG_Z_LD_ELF32_SO_1         ldZhelf32ZdsoZd1         // ld-elf32.so.2
+#define  VG_U_LD_ELF32_SO_1         "ld-elf32.so.2"			 // not a thing btw
 
 #endif
 

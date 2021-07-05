@@ -77,6 +77,37 @@
 
 #define VKI_MAXPATHLEN MAXPATHLEN
 
+//----------------------------------------------------------------------
+// From machine/cpumask.h
+//----------------------------------------------------------------------
+
+typedef struct {
+	vki_uint64_t ary[4];
+} vki_cpumask_t;
+
+//----------------------------------------------------------------------
+// From sys/lwp.h
+//----------------------------------------------------------------------
+
+struct vki_lwp_params {
+	void (*func)(void*);
+	void *arg;
+	void *stack;
+	lwpid_t *tid1;
+	lwpid_t *tid2;
+};
+
+//----------------------------------------------------------------------
+// From sys/tls.h
+//----------------------------------------------------------------------
+
+struct vki_tls_info {
+	void *base;
+	long size;	/* must be signed */
+};
+
+#define VKI_TLS_WHICH_FS	0
+#define VKI_TLS_WHICH_GS	1
 
 //----------------------------------------------------------------------
 // From sys/select.h
@@ -122,7 +153,7 @@ typedef	vki_uint64_t	__vki_fsblkcnt_t;
 typedef	vki_uint64_t	__vki_fsfilcnt_t;
 typedef	vki_uint32_t	__vki_gid_t;
 typedef	vki_int64_t	__vki_id_t;	
-typedef	vki_uint32_t	__vki_ino_t;
+typedef	vki_uint64_t	__vki_ino_t;
 typedef	vki_int32_t	__vki_lwpid_t;
 typedef	vki_uint16_t	__vki_mode_t;
 typedef	vki_uint16_t	__vki_nlink_t;
@@ -199,6 +230,27 @@ typedef __vki_vm_size_t		vki_vm_size_t;
 //----------------------------------------------------------------------
 
 typedef __vki_fd_set		vki_fd_set;
+
+//----------------------------------------------------------------------
+// sys/aio.h
+//----------------------------------------------------------------------
+
+#include <sys/aio.h>
+
+#define vki_aiocb aiocb
+
+//----------------------------------------------------------------------
+// sys/linker.h
+//----------------------------------------------------------------------
+
+struct vki_kld_file_stat {
+    int		version;	/* set to sizeof(linker_file_stat) */
+    char    name[MAXPATHLEN];
+    int		refs;
+    int		id;
+    vki_caddr_t	address;	/* load address */
+    size_t	size;			/* size in bytes */
+};
 
 //----------------------------------------------------------------------
 // Now the rest of the arch-specific stuff
@@ -337,12 +389,12 @@ struct vki_tms {
 // From sys/stat.h
 //----------------------------------------------------------------------
 
-/* QQQ 4.x stat layout */
 struct vki_stat {
-	vki_dev_t	st_dev;
 	vki_ino_t	st_ino;
-	vki_mode_t	st_mode;
 	vki_nlink_t	st_nlink;
+	vki_dev_t	st_dev;
+	vki_mode_t	st_mode;
+	vki_uint16_t	st_padding1;
 	vki_uid_t	st_uid;
 	vki_gid_t	st_gid;
 	vki_dev_t	st_rdev;
@@ -360,15 +412,57 @@ struct vki_stat {
 #endif
 	vki_off_t	st_size;
 	vki_blkcnt_t	st_blocks;
-	vki_blksize_t	st_blksize;
-	vki_fflags_t	st_flags;
+	vki_uint32_t	__old_st_blksize;
+	vki_uint32_t	st_flags;
 	vki_uint32_t	st_gen;
 	vki_int32_t	st_lspare;
-	struct vki_timespec	st_birthtimespec;
-	unsigned int :(8 / 2) * (16 - (int)sizeof(struct vki_timespec));
-	unsigned int :(8 / 2) * (16 - (int)sizeof(struct vki_timespec));
+	vki_blksize_t	st_blksize;
+	vki_int64_t	st_qspare2;
 };
 
+//----------------------------------------------------------------------
+// From sys/uuid.h
+//----------------------------------------------------------------------
+
+struct vki_uuid {
+	vki_uint32_t	time_low;
+	vki_uint16_t	time_mid;
+	vki_uint16_t	time_hi_and_version;
+	vki_uint8_t	clock_seq_hi_and_reserved;
+	vki_uint8_t	clock_seq_low;
+	vki_uint8_t	node[6];
+};
+
+#define vki_uuid_t struct vki_uuid
+
+//----------------------------------------------------------------------
+// From sys/statvfs.h
+//----------------------------------------------------------------------
+
+struct vki_statvfs {
+	unsigned long	f_bsize;	/* file system block size */
+	unsigned long	f_frsize;	/* fundamental file system block size */
+	vki_fsblkcnt_t	f_blocks;	/* total number of blocks on fs */
+	vki_fsblkcnt_t	f_bfree;	/* total number of free blocks */
+	vki_fsblkcnt_t	f_bavail;	/* total number of available blocks */
+	vki_fsfilcnt_t	f_files;	/* total number of file serial num */
+	vki_fsfilcnt_t	f_ffree;	/* total number of free file ser num */
+	vki_fsfilcnt_t	f_favail;	/* total number of avail file ser num */
+	unsigned long	f_fsid;		/* file system ID */
+	unsigned long	f_flag;		/* bit mask of f_flag values */
+	unsigned long	f_namemax;	/* maximum filename length */
+	vki_uid_t		f_owner;	/* user that mounted the filesystem */
+	unsigned int	f_type;		/* filesystem type */
+
+	__uint64_t  	f_syncreads;	/* count of sync reads since mount */
+	__uint64_t  	f_syncwrites;	/* count of sync writes since mount */
+
+	__uint64_t  	f_asyncreads;	/* count of async reads since mount */
+	__uint64_t  	f_asyncwrites;	/* count of async writes since mount */
+
+	vki_uuid_t		f_fsid_uuid;
+	vki_uuid_t		f_uid_uuid;
+};
 
 //----------------------------------------------------------------------
 // From linux-2.6.8.1/include/linux/sched.h
@@ -1199,6 +1293,11 @@ struct vki_rlimit {
 	vki_rlim_t	rlim_max;
 };
 
+struct vki___wrusage {
+	struct vki_rusage   wru_self;
+	struct vki_rusage   wru_children;
+};
+
 #define VKI_RLIMIT_DATA		2	/* max data size */
 #define VKI_RLIMIT_STACK	3	/* max stack size */
 #define VKI_RLIMIT_CORE		4	/* max core file size */
@@ -1567,6 +1666,13 @@ struct vki_dirent {
 // From sys/unistd.h
 //----------------------------------------------------------------------
 
+#define	VKI_EXTEXIT_SIMPLE		0
+#define	VKI_EXTEXIT_SETINT		1
+#define	VKI_EXTEXIT_ACTION(f)	((f) & 0xffff)
+#define	VKI_EXTEXIT_PROC		(0<<16)
+#define	VKI_EXTEXIT_LWP			(1<<16)
+#define	VKI_EXTEXIT_WHO(f)		((f) & (0xffff<<16))
+
 #define VKI_SEEK_SET              0
 #define VKI_SEEK_CUR              1
 #define VKI_SEEK_END              2
@@ -1575,6 +1681,8 @@ struct vki_dirent {
 #define VKI_X_OK	0x01    /* test for execute or search permission */
 #define VKI_W_OK	0x02    /* test for write permission */
 #define VKI_R_OK	0x04    /* test for read permission */
+
+#define VKI_EXTEXIT_LWP (1<<16)
 
 //----------------------------------------------------------------------
 // From sys/msg.h
@@ -1587,22 +1695,25 @@ struct vki_dirent {
 #define VKI_MSGCTL              14
 #endif
 
+typedef	unsigned long	vki_msglen_t;
+typedef	unsigned long	vki_msgqnum_t;
+
 struct vki_msqid_ds {
-	struct vki_ipc_perm msg_perm;
-	struct vki_msg *msg_first;		/* first message on queue,unused  */
-	struct vki_msg *msg_last;		/* last message in queue,unused */
-	vki_uint32_t msg_cbytes;	/* current number of bytes on queue */
-	vki_uint32_t msg_qnum;	/* number of messages in queue */
-	vki_uint32_t msg_qbytes;	/* max number of bytes on queue */
-	vki_pid_t	msg_lspid;	/* pid of last msgsnd */
-	vki_pid_t	msg_lrpid;	/* last receive pid */
-	vki_time_t	msg_stime;	/* last msgsnd time */
-	vki_uint32_t	msg_pad1;
-	vki_time_t	msg_rtime;	/* last msgrcv time */
-	vki_uint32_t	msg_pad2;
-	vki_time_t 	msg_ctime;	/* last change time */
-	vki_uint32_t	msg_pad3;
-	vki_uint32_t	msg_pad4[4];
+	struct	vki_ipc_perm msg_perm;	/* msg queue permission bits */
+	struct	vki_msg *msg_first;	/* first message in the queue. */
+	struct	vki_msg *msg_last;	/* last message in the queue. */
+	vki_msglen_t msg_cbytes;	/* number of bytes in use on the queue */
+	vki_msgqnum_t msg_qnum;	/* number of msgs in the queue */
+	vki_msglen_t msg_qbytes;	/* max # of bytes on the queue */
+	vki_pid_t	msg_lspid;	/* pid of last msgsnd() */
+	vki_pid_t	msg_lrpid;	/* pid of last msgrcv() */
+	vki_time_t	msg_stime;	/* time of last msgsnd() */
+	long	msg_pad1;
+	vki_time_t	msg_rtime;	/* time of last msgrcv() */
+	long	msg_pad2;
+	vki_time_t	msg_ctime;	/* time of last msgctl() */
+	long	msg_pad3;
+	long	msg_pad4[4];
 };
 
 struct vki_msgbuf {
@@ -1610,6 +1721,14 @@ struct vki_msgbuf {
 	char mtext[1];      /* message text */
 };
 
+struct vki_msginfo {
+	int	msgmax,		/* max chars in a message */
+		msgmni,		/* max message queue identifiers */
+		msgmnb,		/* max chars in a queue */
+		msgtql,		/* max messages in system */
+		msgssz,		/* size of a message segment (see notes above) */
+		msgseg;		/* number of message segments */
+};
 
 //----------------------------------------------------------------------
 // From sys/shm.h
@@ -2023,20 +2142,6 @@ struct vki_acl {
 	struct vki_acl_entry acl_entry[VKI_ACL_MAX_ENTRIES];
 };
 
-
-//----------------------------------------------------------------------
-// From sys/uuid.h
-//----------------------------------------------------------------------
-
-struct vki_uuid {
-	vki_uint32_t	time_low;
-	vki_uint16_t	time_mid;
-	vki_uint16_t	time_hi_and_version;
-	vki_uint8_t	clock_seq_hi_and_reserved;
-	vki_uint8_t	clock_seq_low;
-	vki_uint8_t	node[6];
-};
-
 //----------------------------------------------------------------------
 // From sys/user.h
 //----------------------------------------------------------------------
@@ -2158,6 +2263,58 @@ struct vki_kld_sym_lookup {
 #  define VKI_INIT_ARCH_ELF_STATE { }
 
 #endif
+
+//----------------------------------------------------------------------
+// From sys/procctl.h
+//----------------------------------------------------------------------
+
+typedef enum vki_idtype {
+	/*
+	 * These names were mostly lifted from Solaris source code and
+	 * still use Solaris style naming to avoid breaking any
+	 * OpenSolaris code which has been ported to FreeBSD/DragonFly.
+	 * There is no clear DragonFly counterpart for all of the names, but
+	 * some have a clear correspondence to DragonFly entities.
+	 *
+	 * The numerical values are kept synchronized with the Solaris
+	 * values.
+	 */
+	P_PID,			/* A process identifier. */
+	P_PPID,			/* A parent process identifier.	*/
+	P_PGID,			/* A process group identifier. */
+	P_SID,			/* A session identifier. */
+	P_CID,			/* A scheduling class identifier. */
+	P_UID,			/* A user identifier. */
+	P_GID,			/* A group identifier. */
+	P_ALL,			/* All processes. */
+	P_LWPID,		/* An LWP identifier. */
+	P_TASKID,		/* A task identifier. */
+	P_PROJID,		/* A project identifier. */
+	P_POOLID,		/* A pool identifier. */
+	P_JAILID,		/* A zone identifier. */
+	P_CTID,			/* A (process) contract identifier. */
+	P_CPUID,		/* CPU identifier. */
+	P_PSETID		/* Processor set identifier. */
+} vki_idtype_t;			/* The type of id_t we are using. */
+
+struct vki_reaper_status {
+	uint32_t	flags;
+	uint32_t	refs;
+	long		reserved1[15];
+	pid_t		pid_head;
+	int		reserved2[15];
+};
+
+union vki_reaper_info {
+	struct vki_reaper_status	status;
+};
+
+#define VKI_PROC_REAP_ACQUIRE	0x0001
+#define VKI_PROC_REAP_RELEASE	0x0002
+#define VKI_PROC_REAP_STATUS	0x0003
+#define VKI_REAPER_STAT_OWNED	0x00000001
+#define VKI_REAPER_STAT_REALINIT	0x00000002
+
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/
 /*--------------------------------------------------------------------*/

@@ -140,6 +140,18 @@ Bool VG_(resolve_filename) ( Int fd, const HChar** result )
 #  endif
 }
 
+/* For whatever reason mknod(S_FIFO) fails on DragonflyBSD, so we need this */
+SysRes VG_(mkfifo) ( const HChar* pathname, Int mode )
+{
+#  if defined(VGO_dragonfly)
+   SysRes res = VG_(do_syscall2)(__NR_mkfifo, pathname, mode);
+#  else
+#    error Unknown OS
+#  endif
+   return res;
+}
+
+
 SysRes VG_(mknod) ( const HChar* pathname, Int mode, UWord dev )
 {
 #  if defined(VGP_arm64_linux)
@@ -294,7 +306,7 @@ Int VG_(pipe) ( Int fd[2] )
 
 Off64T VG_(lseek) ( Int fd, Off64T offset, Int whence )
 {
-#  if defined(VGO_linux) || defined(VGP_amd64_darwin) || defined(VGP_amd64_dragonfly)
+#  if defined(VGO_linux) || defined(VGP_amd64_darwin)
 #  if defined(__NR__llseek)
    Off64T result;
    SysRes res = VG_(do_syscall5)(__NR__llseek, fd,
@@ -306,7 +318,7 @@ Off64T VG_(lseek) ( Int fd, Off64T offset, Int whence )
    vg_assert(sizeof(Off64T) == sizeof(sr_Res(res)));
    return sr_isError(res) ? (-1) : sr_Res(res);
 #  endif
-#  elif defined(VGP_x86_darwin) || defined(VGP_x86_dragonfly)
+#  elif defined(VGP_x86_darwin)
    SysRes res = VG_(do_syscall4)(__NR_lseek, fd, 
                                  offset & 0xffffffff, offset >> 32, whence);
    return sr_isError(res) ? (-1) : sr_Res(res);
@@ -317,6 +329,10 @@ Off64T VG_(lseek) ( Int fd, Off64T offset, Int whence )
 #  elif defined(VGP_amd64_solaris)
    SysRes res = VG_(do_syscall3)(__NR_lseek, fd, offset, whence);
    vg_assert(sizeof(Off64T) == sizeof(Word));
+   return sr_isError(res) ? (-1) : sr_Res(res);
+#  elif defined(VGO_dragonfly)
+   SysRes res = VG_(do_syscall4)(__NR_lseek, fd, 0, offset, whence);
+   vg_assert(sizeof(Off64T) == sizeof(sr_Res(res)));
    return sr_isError(res) ? (-1) : sr_Res(res);
 #  else
 #    error "Unknown plat"
@@ -891,7 +907,7 @@ SysRes VG_(pread) ( Int fd, void* buf, Int count, OffT offset )
    return res;
 #  elif defined(VGP_amd64_dragonfly)
    vg_assert(sizeof(OffT) == 8);
-   res = VG_(do_syscall4)(__NR_pread, fd, (UWord)buf, count, offset);
+   res = VG_(do_syscall5)(__NR_extpread, fd, (UWord)buf, count, 0, offset);
    return res;
 #  elif defined(VGP_x86_dragonfly)
    vg_assert(sizeof(OffT) == 8);

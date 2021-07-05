@@ -4,7 +4,7 @@
 /*--- The address space manager: segment initialisation and        ---*/
 /*--- tracking, stack operations                                   ---*/
 /*---                                                              ---*/
-/*--- Implementation for Linux, Dragonfly and Darwin                 ---*/
+/*--- Implementation for Linux, Dragonfly and Darwin               ---*/
 /*--------------------------------------------------------------------*/
 
 /*
@@ -1646,7 +1646,7 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
 # if VG_WORDSIZE == 4
    aspacem_maxAddr = VG_PGROUNDDN( sp_at_startup ) - 1;
 # else
-   aspacem_maxAddr = (Addr) (Addr)0x800000000 - 1; // 32G
+   aspacem_maxAddr = (Addr) (Addr)0x20000000000 - 1; // 2T
 #  ifdef ENABLE_INNER
    { Addr cse = VG_PGROUNDDN( sp_at_startup ) - 1;
      if (aspacem_maxAddr > cse)
@@ -3836,6 +3836,53 @@ Bool VG_(get_changed_segments)(
  
  /* static ... to keep it out of the stack frame. */
  static char procmap_buf[M_PROCMAP_BUF];
+
+#define PROCMAP_LINE 1024
+
+/* Apparently this TU doesn't link with VG_strtoul so we get a local copy */
+
+static Bool is_hex_digit(HChar c, Long* digit)
+{
+   if (c >= '0' && c <= '9') { *digit = (Long)(c - '0');        return True; }
+   if (c >= 'A' && c <= 'F') { *digit = (Long)((c - 'A') + 10); return True; }
+   if (c >= 'a' && c <= 'f') { *digit = (Long)((c - 'a') + 10); return True; }
+   return False;
+}
+
+static ULong strtoul16( const HChar* str, HChar** endptr )
+{
+   Bool converted = False;
+   ULong n = 0;
+   Long digit = 0;
+   const HChar* str0 = str;
+
+   // Skip leading whitespace.
+   while ((*str) == ' ' || (*str) == '\t') str++;
+
+   // Allow a leading '+'.
+   if (*str == '+') { str++; }
+
+   // Allow leading "0x", but only if there's a hex digit
+   // following it.
+   if (*str == '0'
+    && (*(str+1) == 'x' || *(str+1) == 'X')
+    && is_hex_digit( *(str+2), &digit )) {
+      str += 2;
+   }
+
+   while (is_hex_digit(*str, &digit)) {
+      converted = True;          // Ok, we've actually converted a digit.
+      n = 16*n + digit;
+      str++;
+   }
+
+   if (!converted) str = str0;   // If nothing converted, endptr points to
+   //   the start of the string.
+   if (endptr)
+      *endptr = CONST_CAST(HChar *,str); // Record first failing character.
+   return n;
+}
+
  
 static void parse_procselfmaps (
       void (*record_mapping)( Addr addr, SizeT len, UInt prot,
@@ -3844,65 +3891,62 @@ static void parse_procselfmaps (
       void (*record_gap)( Addr addr, SizeT len )
    )
 {
-    Int    i;
-    Addr   start, endPlusOne, gapStart;
-    char* filename;
-    char   *p;
-    UInt          prot;
-    ULong  foffset, dev, ino;
-    struct vki_kinfo_vmentry *kve;
-    vki_size_t len;
-    Int    oid[4];
-    SysRes sres;
- 
-    foffset = ino = 0; /* keep gcc-4.1.0 happy */
- 
-    oid[0] = VKI_CTL_KERN;
-    oid[1] = VKI_KERN_PROC;
-    oid[2] = VKI_KERN_PROC_VMMAP;
-    oid[3] = sr_Res(VG_(do_syscall0)(__NR_getpid));
-    len = sizeof(procmap_buf);
- 
-    sres = VG_(do_syscall6)(__NR___sysctl, (UWord)oid, 4, (UWord)procmap_buf,
-       (UWord)&len, 0, 0);
-    if (sr_isError(sres)) {
-       VG_(debugLog)(0, "procselfmaps", "sysctll %ld\n", sr_Err(sres));
-       ML_(am_exit)(1);
+    SysRes res;
+    Addr start, end = 0, vm_backing;
+    SizeT len;
+    UInt prot, mode;
+    ULong dev, ino;
+    Off64T offset;
+    int read, mapfd, secfd;
+    const char *buf = procmap_buf, *ptr;
+
+    res = ML_(am_open)("/proc/curproc/map", VKI_O_RDONLY, 0);
+    mapfd = sr_Res(res);
+
+    /* no err handling */
+    while (read = ML_(am_read)(mapfd, buf, PROCMAP_LINE)) {
+	ptr = buf;
+	prot = dev = ino = offset = 0;
+
+	start = strtoul16(ptr, 0);
+	ptr = VG_(strchr)(ptr, ' ') + 1;
+
+	if (end && start != end && record_gap)
+	    (*record_gap)(end, start - end);
+
+	end = strtoul16(ptr, 0);
+	ptr = VG_(strchr)(ptr, ' ') + 1;
+	ptr = VG_(strchr)(ptr, '0');
+	/* probably useless */
+	vm_backing = strtoul16(ptr, 0);
+	ptr = VG_(strchr)(ptr, ' ') + 1;
+	
+	if (ptr[0] == 'r')
+	    prot |= VKI_PROT_READ;
+	if (ptr[1] == 'w')
+	    prot |= VKI_PROT_WRITE;
+	if (ptr[2] == 'x')
+	    prot |= VKI_PROT_EXEC;
+
+	if (VG_(strchr)(ptr, '/') == 0)
+	    ptr = 0;
+	else {
+	    ptr = VG_(strchr)(ptr, '/');
+	    *VG_(strchr)(ptr, '\n') = 0;
+	    res = ML_(am_open)(ptr, VKI_O_RDONLY, 0);
+	    secfd = sr_Res(res);
+	    ML_(am_get_fd_d_i_m)(secfd, &dev, &ino, &mode);
+	}
+
+	/* afaik no way to get file offset information */
+	if (record_mapping)
+	    (*record_mapping)(start, end - start, prot, dev, ino, 0, ptr);
     }
-    gapStart = Addr_MIN;
-    i = 0;
-    p = procmap_buf;
-    while (p < (char *)procmap_buf + len) {
-       kve = (struct vki_kinfo_vmentry *)p;
-       start      = (UWord)kve->kve_start;
-       endPlusOne = (UWord)kve->kve_end;
-       foffset    = kve->kve_offset;
-       filename   = kve->kve_path;
-       dev        = kve->kve_fsid;
-       ino        = kve->kve_fileid;
-       if (filename[0] != '/') {
-         filename = NULL;
-         foffset = 0;
-       }
- 
-       prot = 0;
-       if (kve->kve_protection & VKI_KVME_PROT_READ)  prot |= VKI_PROT_READ;
-       if (kve->kve_protection & VKI_KVME_PROT_WRITE) prot |= VKI_PROT_WRITE;
-       if (kve->kve_protection & VKI_KVME_PROT_EXEC)  prot |= VKI_PROT_EXEC;
- 
-       if (record_gap && gapStart < start)
-          (*record_gap) ( gapStart, start-gapStart );
- 
-       if (record_mapping && start < endPlusOne)
-          (*record_mapping) ( start, endPlusOne-start,
-                              prot, dev, ino,
-                              foffset, filename );
-       gapStart = endPlusOne;
-       p += kve->kve_structsize;
-    }
- 
+
+    /* old
     if (record_gap && gapStart < Addr_MAX)
        (*record_gap) ( gapStart, Addr_MAX - gapStart + 1 );
+    */
 }
 
 /*------END-procmaps-parser-for-Dragonfly--------------------------*/
