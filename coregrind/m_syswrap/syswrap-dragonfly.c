@@ -1852,6 +1852,56 @@ PRE(sys_procctl)
 }
 
 /* ---------------------------------------------------------------------
+   extattr* wrappers
+   ------------------------------------------------------------------ */
+
+PRE(sys_extattrctl)
+{
+   PRINT("sys_extattrctl ( %s, %d, %s, %d, %s )", ARG1, ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(int, "extattrctl",
+   		const char*, path, int, cmd, const char*, filename,
+		int, attrnamespace, const char*, attrname);
+   PRE_MEM_RASCIIZ("sys_extattrctl(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattrctl(filename)", ARG3);
+   PRE_MEM_RASCIIZ("sys_extattrctl(attrname)", ARG5);
+}
+
+PRE(sys_extattr_set_file)
+{
+   PRINT("sys_extattr_set_file ( %s, %d, %s, %p, %ld )", ARG1, ARG2, ARG3, (void*)ARG4, ARG5);
+   PRE_REG_READ5(vki_ssize_t, "sys_extattr_set_file",
+   		const char*, path, int, attrnamespace, const char*, attrname,
+		const void*, data, vki_size_t, nbytes);
+   PRE_MEM_RASCIIZ("sys_extattr_set_file(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattr_set_file(attrname)", ARG3);
+   PRE_MEM_READ("sys_extattr_set_file(data)", ARG4, ARG5);
+}
+
+PRE(sys_extattr_get_file)
+{
+   PRINT("sys_extattr_get_file ( %s, %d, %s, %p, %ld )", ARG1, ARG2, ARG3, (void*)ARG4, ARG5);
+   PRE_REG_READ5(vki_ssize_t, "sys_extattr_get_file",
+   		const char*, path, int, attrnamespace, const char*, attrname,
+		void*, data, vki_size_t, nbytes);
+   PRE_MEM_RASCIIZ("sys_extattr_get_file(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattr_get_file(attrname)", ARG3);
+}
+POST(sys_extattr_get_file)
+{
+   if (RES > 0)
+      POST_MEM_WRITE(ARG4, RES);
+}
+
+PRE(sys_extattr_delete_file)
+{
+   PRINT("sys_extattr_delete_file ( %s, %d, %s )", ARG1, ARG2, ARG3);
+   PRE_REG_READ3(vki_ssize_t, "sys_extattr_delete_file",
+   		const char*, path, int, attrnamespace, const char*, attrname);
+   PRE_MEM_RASCIIZ("sys_extattr_delete_file(path)", ARG1);
+   PRE_MEM_RASCIIZ("sys_extattr_delete_file(attrname)", ARG3);
+}
+
+/* ---------------------------------------------------------------------
    kld* wrappers
    ------------------------------------------------------------------ */
 
@@ -5084,11 +5134,11 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    BSDX_(__NR___acl_delete_fd,		sys___acl_delete_fd),		// 352
    BSDX_(__NR___acl_aclcheck_file,	sys___acl_aclcheck_file),	// 353
    BSDX_(__NR___acl_aclcheck_fd,	sys___acl_aclcheck_fd),		// 354
-   // BSDXY(__NR_extattrctl,		sys_extattrctl),		// 355
 
-   // BSDXY(__NR_extattr_set_file,	sys_extattr_set_file),		// 356
-   // BSDXY(__NR_extattr_get_file,	sys_extattr_get_file),		// 357
-   // BSDXY(__NR_extattr_delete_file,	sys_extattr_delete_file),	// 358
+   BSDX_(__NR_extattrctl,		sys_extattrctl),		// 355
+   BSDX_(__NR_extattr_set_file,	sys_extattr_set_file),		// 356
+   BSDXY(__NR_extattr_get_file,	sys_extattr_get_file),		// 357
+   BSDX_(__NR_extattr_delete_file,	sys_extattr_delete_file),	// 358
    // BSDXY(__NR_aio_waitcomplete,	sys_aio_waitcomplete),		// 359
 
    BSDXY(__NR_getresuid,		sys_getresuid),			// 360
